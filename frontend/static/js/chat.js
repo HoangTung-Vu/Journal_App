@@ -69,14 +69,14 @@ class ChatService {
     }
 
     async performInitialCheck() {
-         if (this.initialCheckDone || !apiService.token) return; // Don't run if already done or not logged in
-         console.log("Performing initial chat context check...");
-         this.initialCheckDone = true;
-         this.setLoadingState(true, true); // Show initial loading
+        if (!apiService.token) return; // Don't run if not logged in
+        console.log("Performing initial chat context check...");
+        this.initialCheckDone = true;
+        this.setLoadingState(true, true); // Show initial loading
 
         try {
-            // Use the /context endpoint to check for entries
-            const entries = await apiService.getChatContext(); // Expects entry list or throws 404
+            // Always get fresh context from server
+            const entries = await apiService.getChatContext(); // This will now prepare a new chat session
             this.hasEntries = true; // If successful, user has entries
             console.log("Initial entry check successful. User has entries.");
             this.displayWelcomeMessage(); // Display standard welcome message
@@ -87,8 +87,8 @@ class ChatService {
 
             // Check if error indicates "no entries found" (e.g., 404 or specific message)
             if (error.message && (error.message.includes("404") || error.message.toLowerCase().includes("no journal entries found"))) {
-                 console.log("No entries found via context endpoint.");
-                 this.displayWelcomeMessage(); // Display the specific welcome message for no entries
+                console.log("No entries found via context endpoint.");
+                this.displayWelcomeMessage(); // Display the specific welcome message for no entries
             } else if (error.message && error.message.includes("401")) {
                 // Should be handled by Auth service redirect, but handle defensively
                 this.displayErrorMessage("Bạn cần đăng nhập để sử dụng tính năng Chat.");
@@ -99,7 +99,7 @@ class ChatService {
                 this.disableInput("Error loading context.");
             }
         } finally {
-             this.setLoadingState(false, true); // Hide initial loading, enable/disable input based on hasEntries
+            this.setLoadingState(false, true); // Hide initial loading, enable/disable input based on hasEntries
         }
     }
 

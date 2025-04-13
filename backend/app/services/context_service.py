@@ -13,38 +13,29 @@ logger = logging.getLogger(__name__)
 class ContextService:
     def __init__(self, db: Session):
         self.db = db
-        # Store chat services per user ID. Key: user_id (int), Value: ChatService instance
-        # !!! This dictionary needs to be managed at a higher level (e.g., application state)
-        # !!! or passed around carefully if ContextService is instantiated per request.
-        # !!! For simplicity in this example, let's assume it's managed correctly,
-        # !!! but in a real app, use FastAPI dependencies or a shared state mechanism.
-        # !!! A simple global dict is often problematic in production.
-        # <<< TEMPORARY SOLUTION: Using a class variable (less ideal but works for demo) >>>
+        # Store chat services per user ID. Class variable for simplicity (consider better state management in production).
         if not hasattr(ContextService, '_chat_services'):
-             ContextService._chat_services: Dict[int, ChatService] = {}
-
-        self.context_limit = 5 # Number of recent entries for context
+            ContextService._chat_services: Dict[int, ChatService] = {}
+        self.context_limit = 5
 
     def _get_chat_service(self, user_id: int) -> ChatService:
-        """Get or create a chat service instance for a user."""
-        # Access the class variable
+        """Get or create a chat service instance for a user. Does NOT initialize the session."""
         if user_id not in ContextService._chat_services:
-            logger.info(f"Creating new ChatService instance for user {user_id}")
+            logger.info(f"Creating NEW ChatService instance for user {user_id}")
             ContextService._chat_services[user_id] = ChatService()
-        else:
-            logger.debug(f"Reusing existing ChatService instance for user {user_id}")
+        # else:
+            # logger.debug(f"Reusing existing ChatService instance for user {user_id} (check initialization status)")
         return ContextService._chat_services[user_id]
 
     def _reset_chat_service(self, user_id: int):
         """Explicitly remove a user's chat service instance."""
         if user_id in ContextService._chat_services:
-            logger.warning(f"Resetting chat service for user {user_id}.")
+            logger.warning(f"Resetting (deleting) chat service instance for user {user_id}.")
             del ContextService._chat_services[user_id]
 
     def _get_context_entries(self, user_id: int, exclude_id: Optional[int] = None) -> List[models.JournalEntry]:
         """Fetches the most recent journal entries for context."""
         try:
-            # Use limit from self.context_limit
             entries = crud.get_journals(
                 db=self.db,
                 user_id=user_id,
@@ -53,72 +44,101 @@ class ContextService:
             )
             if exclude_id:
                 entries = [e for e in entries if e.id != exclude_id]
-            logger.debug(f"Fetched {len(entries)} context entries for user {user_id}.")
+            # logger.debug(f"Fetched {len(entries)} context entries for user {user_id}.")
             return entries
         except Exception as e:
             logger.error(f"Error fetching context entries for user {user_id}: {str(e)}", exc_info=True)
             return []
 
+    async def prepare_new_chat_session(self, user_id: int) -> List[models.JournalEntry]:
+        """
+        Resets the user's chat service and initializes a new session with the latest context.
+        Called when the user enters the chat page (via /context endpoint).
+        Returns the context entries used or raises ValueError if none are found.
+        """
+        logger.info(f"Preparing NEW chat session for user {user_id}.")
+
+        try:
+            # 1. Reset any existing service instance for the user first
+            self._reset_chat_service(user_id)
+
+            # 2. Fetch latest context
+            context_entries = self._get_context_entries(user_id)
+            if not context_entries:
+                logger.warning(f"No journal entries found for user {user_id}. Cannot prepare chat session.")
+                raise ValueError("No journal entries found. Please write an entry to start chatting.")
+
+            # 3. Get a fresh ChatService instance
+            chat_service = self._get_chat_service(user_id)
+
+            # 4. Initialize the new session on the fresh instance
+            try:
+                await chat_service.start_chat(context_entries)
+                logger.info(f"Successfully initialized new chat session for user {user_id} with {len(context_entries)} entries.")
+                return context_entries # Return the entries used for context
+            except (ValueError, AIConfigError, AIResponseError) as e:
+                logger.error(f"Failed to initialize new chat session for user {user_id}: {e}", exc_info=True)
+                # Ensure the failed service instance is cleaned up
+                self._reset_chat_service(user_id)
+                # Re-raise a user-friendly error or the original error
+                raise ValueError(f"Failed to start chat session: {str(e)}") # Use ValueError to signal issue to router
+            except Exception as e:
+                logger.error(f"Unexpected error during chat session initialization for user {user_id}: {e}", exc_info=True)
+                self._reset_chat_service(user_id)
+                raise ValueError("An unexpected error occurred while preparing the chat session.")
+        except Exception as e:
+            logger.error(f"Critical error in prepare_new_chat_session for user {user_id}: {e}", exc_info=True)
+            raise Exception(f"Failed to prepare chat session: {str(e)}")
+
     async def process_chat_message(self, message: str, user_id: int) -> str:
         """
-        Process a chat message from a user, initializing chat if necessary,
-        and return AI's response using the persistent chat session.
+        Process a chat message using the user's CURRENT chat session.
+        Assumes the session was prepared by `prepare_new_chat_session` via the /context endpoint.
+        Includes a fallback initialization check just in case.
         """
         chat_service = self._get_chat_service(user_id)
 
-        try:
-            # Initialize chat service ONLY if not already initialized for this user's service instance
-            if not chat_service.is_initialized:
-                logger.info(f"Chat session not initialized for user {user_id}. Attempting initialization...")
+        # --- Fallback Initialization Check ---
+        # Ideally, `prepare_new_chat_session` should have been called successfully via `/context`
+        # before the user could send a message. This handles edge cases or direct API calls.
+        if not chat_service.is_initialized:
+            logger.warning(f"Chat session for user {user_id} was NOT initialized when process_chat_message was called. Attempting fallback initialization.")
+            try:
+                # Attempt to initialize here (less ideal as it might use slightly stale context if called directly)
                 context_entries = self._get_context_entries(user_id)
-
                 if not context_entries:
-                    logger.warning(f"No journal entries found for context for user {user_id}. Cannot start chat.")
-                    # Deny chat explicitly
                     raise ValueError("Please write at least one journal entry to start chatting.")
-
-                # Attempt to initialize the chat session with context
                 await chat_service.start_chat(context_entries)
-                logger.info(f"Chat session initialized successfully for user {user_id}.")
-            else:
-                 logger.debug(f"Chat session already initialized for user {user_id}.")
+                logger.info(f"Fallback chat session initialization successful for user {user_id}.")
+            except (ValueError, AIConfigError, AIResponseError) as e:
+                logger.error(f"Fallback chat initialization FAILED for user {user_id}: {e}")
+                self._reset_chat_service(user_id) # Clean up failed instance
+                # Raise an error that the router can handle (e.g., 400 or 503)
+                if "journal entry" in str(e):
+                    raise ValueError(str(e)) # Let router return 400
+                else:
+                    raise AIResponseError(f"Failed to initialize chat during fallback: {e}") # Let router return 503
 
-            # Send the user's message to the initialized chat session
+        # --- Send Message to Initialized Session ---
+        try:
             response = await chat_service.send_message(message)
             return response
-
-        except (ValueError, AIResponseError, AIConfigError) as e: # Catch specific errors
-            logger.error(f"Chat processing error for user {user_id}: {type(e).__name__} - {str(e)}")
-            # Reset chat service on specific errors to force re-initialization next time
-            # Especially if the session is invalid or configuration is wrong.
-            # ValueError("Please write...") doesn't require reset, others might.
-            if not isinstance(e, ValueError) or "journal entry" not in str(e):
-                 self._reset_chat_service(user_id)
-
-            # Re-raise the error with a user-friendly message potentially
-            if "Please write at least one journal entry" in str(e):
-                 raise Exception("Please write at least one journal entry to start chatting.")
-            elif isinstance(e, AIConfigError):
-                 raise Exception("AI service configuration error. Please contact administrator.")
-            elif isinstance(e, AIResponseError):
-                 # Pass specific AI error message if safe (like safety or quota)
-                 if "safety setting" in str(e).lower() or "quota" in str(e).lower():
-                      raise Exception(f"AI Error: {str(e)}")
-                 else:
-                      raise Exception(f"AI service failed to respond properly.")
-            else:
-                 # Other ValueErrors from within ChatService
-                 raise Exception(f"Failed to process chat message: {str(e)}")
+        except (AIResponseError, AIConfigError) as e: # Catch specific errors from send_message
+            logger.error(f"Chat send/receive error for user {user_id}: {type(e).__name__} - {str(e)}")
+            # Don't necessarily reset the service here unless the error indicates a fatal session issue
+            # Re-raise the specific error for the router to handle
+            raise
         except Exception as e:
              logger.error(f"Unexpected error processing chat for user {user_id}: {str(e)}", exc_info=True)
-             # Reset chat service on unexpected errors too
-             self._reset_chat_service(user_id)
+             # Consider resetting on truly unexpected errors
+             # self._reset_chat_service(user_id)
              raise Exception("An unexpected error occurred while processing your message.")
+
 
     async def get_ai_consultation(self, entry_id: int, user_id: int) -> str:
         """
         Get AI consultation for a specific journal entry (Existing Functionality - unchanged).
-        This uses the separate `generate_ai_response` function, not the user's chat session.
+        Uses the separate `generate_ai_response` function, not the user's chat session.
         """
         logger.debug(f"Starting single AI consultation for entry {entry_id}, user {user_id}")
         try:
@@ -151,19 +171,20 @@ class ContextService:
              raise # Re-raise specific error like "not found"
         except (AIResponseError, AIConfigError) as e:
             logger.error(f"AI service error during consultation for entry {entry_id}, user {user_id}: {str(e)}")
-            raise Exception(f"Failed to get AI consultation due to AI service issue: {str(e)}")
+            raise AIServiceError(f"Failed to get AI consultation due to AI service issue: {str(e)}") # Use base AI error
         except Exception as e:
             logger.error(f"Unexpected error getting AI consultation for entry {entry_id}, user {user_id}: {str(e)}", exc_info=True)
             raise Exception("An unexpected error occurred while getting the AI consultation.")
 
     def get_chat_context_for_display(self, user_id: int) -> List[models.JournalEntry]:
         """
-        Get the most recent journal entries potentially used as context (for display/check).
+        DEPRECATED for triggering init. Use prepare_new_chat_session.
+        This method *only* fetches entries for display/checking *without* resetting the session.
+        Kept for potential future use cases or if frontend needs just the list without triggering reset.
         """
-        logger.debug(f"Fetching chat context for display for user {user_id}")
+        logger.debug(f"Fetching chat context for DISPLAY ONLY for user {user_id}")
         entries = self._get_context_entries(user_id)
         if not entries:
-             # Raise an error that the frontend can interpret as "no entries found"
              logger.warning(f"No journal entries found for context display for user {user_id}")
              raise ValueError("No journal entries found. Please write an entry to start chatting.")
         return entries

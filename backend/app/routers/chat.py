@@ -66,22 +66,22 @@ async def handle_chat_message(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An internal error occurred: {str(e)}")
 
 @router.get("/context", response_model=List[schemas.JournalEntry])
-async def get_chat_context_entries( # Renamed function for clarity
+async def get_chat_context_entries(
     db: DbSession,
     current_user: CurrentUser,
 ):
     """
-    Get the most recent journal entries for the current user.
+    Get the most recent journal entries for the current user and prepare a new chat session.
     The frontend uses this to check if the user can start chatting.
     Returns 404 if no entries are found.
     """
     context_service = ContextService(db)
     try:
-        # This method now raises ValueError if no entries are found
-        context_entries = context_service.get_chat_context_for_display(current_user.id)
+        # Always prepare a new chat session to get fresh context
+        context_entries = await context_service.prepare_new_chat_session(current_user.id)
         return context_entries # Returns list of entries on success
     except ValueError as e:
-         # Raised by get_chat_context_for_display if no entries found
+        # Raised by prepare_new_chat_session if no entries found
         logger.warning(f"No chat context found for user {current_user.id} via /context endpoint.")
         # Return 404 Not Found, as the "resource" (context entries) doesn't exist
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

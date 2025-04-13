@@ -362,7 +362,7 @@ class JournalService {
       if (result && result.consultation) {
           this.aiContent.textContent = result.consultation; // Display new content
            this.aiContent.classList.remove("hidden"); // Show content area
-          showNotification("Đã nhận được tư vấn từ AI!");
+          showNotification("Done!");
       } else {
           throw new Error("Phản hồi AI không hợp lệ.");
       }
