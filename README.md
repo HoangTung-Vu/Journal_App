@@ -4,8 +4,6 @@
 
 Whether you're looking to understand your emotions better, track personal growth, or simply need a non-judgmental space to process your day, Journal AI provides the tools you need.
 
-**(Optional: Consider adding a screenshot or GIF of the app interface here)**
-<!-- ![Journal AI Screenshot](link/to/your/screenshot.png) -->
 
 ## What Journal AI Offers
 
