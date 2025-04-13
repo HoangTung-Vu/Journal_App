@@ -8,6 +8,8 @@ class ApiService {
     this.baseURL = baseURL;
     this.token = localStorage.getItem("journalToken"); // Use a specific key
     console.log("ApiService Initialized. Token found:", !!this.token);
+    this.maxRetries = 3;
+    this.retryDelay = 1000; // 1 second
   }
 
   // Set authentication token
@@ -52,8 +54,7 @@ class ApiService {
 
       // Prepare body
       let body = options.body;
-      if (isFormData && body) {
-          // Convert object to URLSearchParams for x-www-form-urlencoded
+      if (isFormData && body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
           const formData = new URLSearchParams();
           for (const key in body) {
               if (Object.hasOwnProperty.call(body, key)) {
@@ -61,33 +62,29 @@ class ApiService {
               }
           }
           body = formData;
-      } else if (body && typeof body !== 'string' && !(body instanceof FormData)) {
-          // Default to JSON stringify if not FormData or already string
+      } else if (body && typeof body !== 'string' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
           body = JSON.stringify(body);
       }
 
       const fetchOptions = {
           method: method,
-          headers: this.getHeaders(isFormData),
-          body: body // Body can be string, URLSearchParams, FormData, null
+          headers: this.getHeaders(isFormData || (body instanceof URLSearchParams)),
+          body: body
       };
 
-       console.log(`Making ${method} request to: ${url}`);
-       // console.log("Fetch Options:", fetchOptions); // Debug fetch options
-
+      console.log(`Making ${method} request to: ${url}`);
 
       try {
-          const response = await fetch(url, fetchOptions);
+          const response = await this._fetchWithRetry(endpoint, fetchOptions);
           return this.handleResponse(response);
       } catch (error) {
           console.error(`Network or other error fetching ${url}:`, error);
-           if (error instanceof TypeError && error.message === "Failed to fetch") {
-                throw new Error("Network error: Could not connect to the server. Please check if the backend is running.");
-            }
-          throw error; // Re-throw the error for the caller to handle
+          if (error instanceof TypeError && error.message === "Failed to fetch") {
+              throw new Error("Network error: Could not connect to the server. Please check if the backend is running.");
+          }
+          throw error;
       }
   }
-
 
   // Handle API response
   async handleResponse(response) {
@@ -119,6 +116,13 @@ class ApiService {
              throw new Error(errorData.detail || "Authentication required or session expired.");
         }
 
+        // Handle specific service unavailable errors (like from AI)
+        if (response.status === 503) {
+             console.error("Received 503 Service Unavailable.");
+             throw new Error(errorData.detail || "Service is temporarily unavailable. Please try again later.");
+        }
+
+
         throw new Error(errorData.detail || `HTTP error ${response.status}`);
     }
 
@@ -149,7 +153,7 @@ class ApiService {
         method: 'POST',
         body: { username: email, password: password }, // request() will convert this
         isFormData: true, // Signal to use URLSearchParams
-        skipAuth: true    // Don't send Authorization header for login itself
+        // skipAuth: true // Handled by checking this.token in getHeaders
     });
     // No need to call setToken here, handleResponse doesn't automatically do it.
     // The caller (AuthService) should call setToken with the result.
@@ -160,7 +164,7 @@ class ApiService {
     return this.request(`${API_V1_PREFIX}/auth/register`, {
         method: 'POST',
         body: { email, password }, // Body is JSON
-        skipAuth: true
+        // skipAuth: true
     });
   }
 
@@ -219,10 +223,60 @@ class ApiService {
   async getAIConsultation(entryId) {
     console.log("Getting AI consultation for entry:", entryId);
     // Requires auth
+    // Backend now handles context automatically for this endpoint
     return this.request(`${API_V1_PREFIX}/journal/${entryId}/consult`, {
         method: 'POST'
         // No request body needed for this endpoint currently
     });
+  }
+
+  // --- Chat API Call ---
+  async sendChatMessage(message) {
+      console.log("Sending chat message:", message);
+      // Requires auth
+      return this.request(`${API_V1_PREFIX}/chat/`, {
+          method: 'POST',
+          body: { message: message } // JSON body
+      });
+      // Expects a response like { "reply": "..." }
+  }
+
+  async _fetchWithRetry(endpoint, options = {}, retryCount = 0) {
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 503 && retryCount < this.maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+          return this._fetchWithRetry(endpoint, options, retryCount + 1);
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response;
+    } catch (error) {
+      if (retryCount < this.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+        return this._fetchWithRetry(endpoint, options, retryCount + 1);
+      }
+      throw error;
+    }
+  }
+
+  async getChatContext() {
+    try {
+      const response = await this._fetchWithRetry('/chat/context');
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting chat context:', error);
+      throw error;
+    }
   }
 }
 

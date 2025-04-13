@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Use relative imports for modules within the same package
 from .db import database, models
-from .routers import auth, journal
+from .routers import auth, journal, chat # Import the new chat router
 from .core.config import settings # Import settings
 
 # Create database tables on startup if DB initialization is enabled
@@ -20,8 +20,8 @@ print("Database initialization complete.")
 
 app = FastAPI(
     title="AI Journal App API",
-    version="0.2.0",
-    description="API for a simple AI-powered journaling application."
+    version="0.3.0", # Version bump
+    description="API for a simple AI-powered journaling application with chat."
 )
 
 # Configure CORS
@@ -46,6 +46,7 @@ app.add_middleware(
 # --- API Routers ---
 app.include_router(auth.router) # Includes prefix /api/v1/auth from auth.py
 app.include_router(journal.router) # Includes prefix /api/v1/journal from journal.py
+app.include_router(chat.router) # Includes prefix /api/v1/chat from chat.py
 
 # --- Static Files and Frontend Serving ---
 
@@ -87,6 +88,15 @@ async def serve_journal_page():
         return FileResponse(journal_path)
     else:
         raise HTTPException(status_code=404, detail="journal.html not found")
+
+@app.get("/chat.html", include_in_schema=False)
+async def serve_chat_page():
+    """Serves the chat application page."""
+    chat_path = frontend_dir / "chat.html"
+    if chat_path.is_file():
+        return FileResponse(chat_path)
+    else:
+        raise HTTPException(status_code=404, detail="chat.html not found")
 
 @app.get("/test-connection.html", include_in_schema=False)
 async def serve_test_connection_page():

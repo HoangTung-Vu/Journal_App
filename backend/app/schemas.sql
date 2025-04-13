@@ -1,5 +1,9 @@
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS journal_entries CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
 -- Users table
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR NOT NULL UNIQUE,
     hashed_password VARCHAR NOT NULL,
@@ -7,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Journal entries table
-CREATE TABLE IF NOT EXISTS journal_entries (
+CREATE TABLE journal_entries (
     id SERIAL PRIMARY KEY,
     title VARCHAR NOT NULL,
     content TEXT NOT NULL,
@@ -17,5 +21,5 @@ CREATE TABLE IF NOT EXISTS journal_entries (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_journal_entries_owner_id ON journal_entries(owner_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX idx_journal_entries_owner_id ON journal_entries(owner_id);
+CREATE INDEX idx_users_email ON users(email);

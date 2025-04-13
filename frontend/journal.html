@@ -13,6 +13,9 @@
         <h1><i class="fas fa-book-open"></i> AI Journal</h1>
         <div class="user-info">
             <span id="user-email">Đang tải...</span>
+            <a href="/chat.html" class="button outline">
+                <i class="fas fa-comments"></i> Chat với AI
+            </a>
             <button id="logout-btn" class="outline">Đăng xuất</button>
         </div>
     </div>
@@ -20,89 +23,92 @@
     <!-- Global Notification Area -->
     <div id="notification" class="notification"></div>
 
-    <div class="journal-layout">
-        <!-- Sidebar for Entry List and New Entry Button -->
-        <div class="sidebar">
-            <button id="new-entry-btn" class="primary full-width">
-                <i class="fas fa-plus"></i> Bài viết mới
-            </button>
-            <hr>
-            <h3>Danh sách bài viết</h3>
-            <div id="entries-list" class="entries-list">
-                <!-- Entries will be loaded here by journal.js -->
-                <p class="text-center text-muted">Đang tải danh sách...</p>
+    <!-- Main Application Container -->
+    <div class="app-container">
+        <!-- Journal Layout (Sidebar + Main Content) -->
+        <div class="journal-layout">
+            <!-- Sidebar for Entry List and New Entry Button -->
+            <div class="sidebar">
+                <button id="new-entry-btn" class="primary full-width">
+                    <i class="fas fa-plus"></i> Bài viết mới
+                </button>
+                <hr>
+                <h3>Danh sách bài viết</h3>
+                <div id="entries-list" class="entries-list">
+                    <!-- Entries will be loaded here by journal.js -->
+                    <p class="text-center text-muted">Đang tải danh sách...</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Main Content Area for Viewing/Editing Entries and AI Consultation -->
-        <div class="main-content">
-            <!-- Entry Viewing Area -->
-            <div id="entry-view" class="entry-view hidden">
-                <div class="entry-header">
-                     <h2 id="entry-title"></h2>
-                     <div class="entry-actions">
-                         <button id="edit-entry-btn" class="icon-btn" title="Chỉnh sửa bài viết">
-                             <i class="fas fa-edit"></i>
-                         </button>
-                         <button id="delete-entry-btn" class="icon-btn danger" title="Xóa bài viết">
-                             <i class="fas fa-trash-alt"></i>
-                         </button>
+            <!-- Main Content Area for Viewing/Editing Entries and AI Consultation -->
+            <div class="main-content">
+                <!-- Entry Viewing Area -->
+                <div id="entry-view" class="entry-view hidden">
+                    <div class="entry-header">
+                         <h2 id="entry-title"></h2>
+                         <div class="entry-actions">
+                             <button id="edit-entry-btn" class="icon-btn" title="Chỉnh sửa bài viết">
+                                 <i class="fas fa-edit"></i>
+                             </button>
+                             <button id="delete-entry-btn" class="icon-btn danger" title="Xóa bài viết">
+                                 <i class="fas fa-trash-alt"></i>
+                             </button>
+                         </div>
+                    </div>
+                    <div id="entry-date" class="date"></div>
+                    <div id="entry-content" class="content"></div>
+                    <hr>
+                    <button id="get-ai-btn" class="primary">
+                        <i class="fas fa-robot"></i> Nhận tư vấn AI
+                    </button>
+                     <!-- AI Consultation Area -->
+                     <div id="ai-consultation" class="ai-consultation hidden">
+                         <h3><i class="fas fa-brain"></i> Phân tích từ AI</h3>
+                          <div id="ai-loading" class="loading-indicator hidden">
+                              <i class="fas fa-spinner fa-spin"></i> Đang phân tích...
+                          </div>
+                         <div id="ai-content" class="ai-content">
+                            <!-- AI response will be loaded here -->
+                         </div>
                      </div>
                 </div>
-                <div id="entry-date" class="date"></div>
-                <div id="entry-content" class="content"></div>
-                <hr>
-                <button id="get-ai-btn" class="primary">
-                    <i class="fas fa-robot"></i> Nhận tư vấn AI
-                </button>
-                 <!-- AI Consultation Area -->
-                 <div id="ai-consultation" class="ai-consultation hidden">
-                     <h3><i class="fas fa-brain"></i> Phân tích từ AI</h3>
-                      <div id="ai-loading" class="loading-indicator hidden">
-                          <i class="fas fa-spinner fa-spin"></i> Đang phân tích...
-                      </div>
-                     <div id="ai-content" class="ai-content">
-                        <!-- AI response will be loaded here -->
-                     </div>
-                 </div>
-            </div>
 
-            <!-- Entry Editing/Creating Area -->
-            <div id="entry-editor" class="entry-editor hidden">
-                <h2 id="editor-title">Tạo bài viết mới</h2> <!-- Title changes based on edit/create -->
-                <form id="entry-form">
-                    <input type="hidden" id="entry-id-input"> <!-- Hidden field for editing -->
-                    <div class="form-group">
-                        <label for="entry-title-input">Tiêu đề</label>
-                        <input type="text" id="entry-title-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="entry-content-input">Nội dung</label>
-                        <textarea id="entry-content-input" rows="15" required></textarea>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" class="primary">Lưu bài viết</button>
-                        <button type="button" id="cancel-btn" class="outline">Hủy bỏ</button>
-                    </div>
-                </form>
-            </div>
+                <!-- Entry Editing/Creating Area -->
+                <div id="entry-editor" class="entry-editor hidden">
+                    <h2 id="editor-title">Tạo bài viết mới</h2> <!-- Title changes based on edit/create -->
+                    <form id="entry-form">
+                        <input type="hidden" id="entry-id-input"> <!-- Hidden field for editing -->
+                        <div class="form-group">
+                            <label for="entry-title-input">Tiêu đề</label>
+                            <input type="text" id="entry-title-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="entry-content-input">Nội dung</label>
+                            <textarea id="entry-content-input" rows="15" required></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="primary">Lưu bài viết</button>
+                            <button type="button" id="cancel-btn" class="outline">Hủy bỏ</button>
+                        </div>
+                    </form>
+                </div>
 
-            <!-- Placeholder when no entry is selected -->
-            <div id="no-entry-selected" class="placeholder-view">
-                 <i class="fas fa-feather-alt"></i>
-                 <p>Chọn một bài viết từ danh sách hoặc tạo bài viết mới.</p>
-            </div>
+                <!-- Placeholder when no entry is selected -->
+                <div id="no-entry-selected" class="placeholder-view">
+                     <i class="fas fa-feather-alt"></i>
+                     <p>Chọn một bài viết từ danh sách hoặc tạo bài viết mới.</p>
+                </div>
 
-        </div>
-    </div>
+            </div> <!-- End Main Content -->
+        </div> <!-- End Journal Layout -->
+    </div> <!-- End App Container -->
 
     <!-- Import JS Modules -->
     <script type="module">
         // Import necessary services/modules
         import { AuthService } from '/static/js/auth.js';
         import { JournalService } from '/static/js/journal.js';
-        // Utils might be imported within services if needed, or globally if required
-        // import { showNotification } from '/static/js/utils.js';
+        import { showNotification } from '/static/js/utils.js';
 
         // Initialize services for the journal page
         const authService = new AuthService();
@@ -115,16 +121,15 @@
         journalService.init();
 
         // Setup global error handler (optional, but good practice)
+        window.addEventListener("unhandledrejection", (event) => {
+             console.error("Unhandled Promise Rejection:", event.reason);
+             const message = event.reason?.message || "Lỗi không mong muốn xảy ra.";
+             showNotification(message, true);
+        });
         window.addEventListener("error", (event) => {
           console.error("Unhandled error:", event.error);
-          // Optionally use showNotification if imported globally
-          // showNotification("An unexpected error occurred", true);
-          const notificationArea = document.getElementById('notification');
-          if (notificationArea) {
-               notificationArea.textContent = "Lỗi không mong muốn xảy ra.";
-               notificationArea.className = 'notification error show';
-               setTimeout(() => { notificationArea.classList.remove('show'); }, 3000);
-          }
+          const message = event.error?.message || "Lỗi không mong muốn xảy ra.";
+          showNotification(message, true);
         });
 
     </script>

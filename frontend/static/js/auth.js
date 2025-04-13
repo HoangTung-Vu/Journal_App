@@ -78,6 +78,26 @@ class AuthService {
      this.loadUserInfo();
   }
 
+  // Initialization specific to the Chat page (chat.html)
+  initChatPage() {
+     console.log("Initializing Chat Page Auth Logic");
+     if (!apiService.token) {
+          console.log("No token found, redirecting to login.");
+          this.redirectToLogin();
+          return; // Stop initialization if not logged in
+     }
+
+     // Setup logout button listener
+     if (this.logoutBtn) {
+          this.logoutBtn.addEventListener("click", this.handleLogout.bind(this));
+     } else {
+          console.warn("Logout button not found.");
+     }
+
+     // Load user info for display
+     this.loadUserInfo();
+  }
+
   // --- Auth Page Methods ---
 
    redirectIfLoggedIn() {

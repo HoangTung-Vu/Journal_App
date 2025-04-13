@@ -9,7 +9,9 @@ from .schemas import (
     JournalEntryCreate,
     JournalEntryUpdate,
     JournalEntry,
-    AIConsultationResponse
+    AIConsultationResponse,
+    ChatRequest,
+    ChatResponse
 )
 
 __all__ = [
@@ -22,5 +24,7 @@ __all__ = [
     "JournalEntryCreate",
     "JournalEntryUpdate",
     "JournalEntry",
-    "AIConsultationResponse"
+    "AIConsultationResponse",
+    "ChatRequest",
+    "ChatResponse"
 ]
