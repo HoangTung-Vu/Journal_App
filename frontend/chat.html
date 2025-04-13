@@ -11,13 +11,13 @@
     <link rel="stylesheet" href="/static/css/chat.css">
 </head>
 <body>
-    <!-- Header (reuse from journal.html structure) -->
+    <!-- Header -->
     <div class="header">
         <h1><i class="fas fa-comments"></i> Trò chuyện với AI</h1>
         <div class="user-info">
             <span id="user-email">Đang tải...</span>
             <!-- Link back to Journal -->
-            <a href="/journal.html" class="button outline">
+            <a href="/journal.html" class="button outline"> <!-- Use <a> tag -->
                 <i class="fas fa-book"></i> Xem Nhật ký
             </a>
             <button id="logout-btn" class="outline">Đăng xuất</button>
@@ -28,58 +28,85 @@
     <div id="notification" class="notification"></div>
 
     <!-- Main Chat Container -->
-    <div class="app-container chat-app-container"> <!-- Added specific class -->
+    <div class="app-container chat-app-container">
         <div class="chat-container" id="chat-container">
             <div id="chat-messages" class="messages-container">
-                <!-- Initial welcome/loading message can be added by JS -->
+                <!-- Messages will be added by JS -->
+                 <!-- Initial state message can be added here or by JS -->
+                 <div class="message ai-message">
+                    <div class="message-content"><p>Đang khởi tạo và kiểm tra nhật ký...</p></div>
+                 </div>
             </div>
+            <!-- Loading indicator for AI response -->
             <div id="loading-indicator" class="loading-indicator" style="display: none;">
                 <div class="typing-indicator">
                     <span></span>
                     <span></span>
                     <span></span>
                 </div>
-                 <!-- <p>AI đang suy nghĩ...</p> -->
             </div>
             <div class="input-container" id="chat-input-area">
-                <textarea id="message-input" placeholder="Nhập tin nhắn của bạn ở đây..." rows="1"></textarea>
-                <button id="send-button" title="Gửi tin nhắn">
+                <textarea id="message-input" placeholder="Đang kiểm tra..." rows="1" disabled></textarea>
+                <button id="send-button" title="Gửi tin nhắn" disabled>
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Load Marked library for Markdown rendering -->
+    <!-- Load Marked library -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Import JS Modules -->
     <script type="module">
-        // Import necessary services/modules
         import { AuthService } from '/static/js/auth.js';
-        import { ChatService } from '/static/js/chat.js'; // Import ChatService
+        import { ChatService } from '/static/js/chat.js';
         import { showNotification } from '/static/js/utils.js';
-        import { apiService } from '/static/js/api.js'; // apiService is used by ChatService
+        // apiService is imported by ChatService and AuthService
 
-        // Initialize services for the chat page
         const authService = new AuthService();
-        const chatService = new ChatService(); // Instantiate ChatService
+        const chatService = new ChatService();
 
-        // Initialize Auth first to check login status and load user info/logout button
-        authService.initChatPage(); // Dedicated init for this page
+        // Initialize Auth first
+        const isLoggedIn = authService.checkLoginStatusAndSetupUserUI();
 
-        // Initialize Chat service after ensuring user is logged in
-        // ChatService constructor now handles its initialization logic
-        // No separate chatService.init() needed unless designed differently
+        if (isLoggedIn) {
+            // If logged in, perform the initial check for chat readiness
+            chatService.performInitialCheck();
+        } else {
+            // Auth service should have redirected, but handle defensively
+             console.warn("User not logged in, chat cannot initialize.");
+             // Optionally display a message or ensure input is disabled
+             chatService.disableInput("Vui lòng đăng nhập để chat.");
+        }
 
-        // Setup global error handler (optional, but good practice)
+        // Setup global error handlers
         window.addEventListener("unhandledrejection", (event) => {
              console.error("Unhandled Promise Rejection:", event.reason);
-             const message = event.reason?.detail || event.reason?.message || "Lỗi không mong muốn xảy ra.";
+             // Attempt to get a useful message from the rejection reason
+             let message = "Lỗi không mong muốn xảy ra (Promise).";
+             if (event.reason instanceof Error) {
+                 message = event.reason.message || message;
+             } else if (typeof event.reason === 'string') {
+                 message = event.reason;
+             }
+             // Try to extract detail if it's a custom error structure from fetch
+             if(event.reason && event.reason.detail) {
+                message = event.reason.detail;
+             }
              showNotification(message, true);
         });
         window.addEventListener("error", (event) => {
           console.error("Unhandled error:", event.error);
-          const message = event.error?.detail || event.error?.message || "Lỗi không mong muốn xảy ra.";
+          let message = "Lỗi không mong muốn xảy ra (Error Event).";
+          if (event.error instanceof Error) {
+              message = event.error.message || message;
+          } else if (typeof event.message === 'string') {
+              message = event.message;
+          }
+           // Try to extract detail if it's a custom error structure from fetch
+           if(event.error && event.error.detail) {
+              message = event.error.detail;
+           }
           showNotification(message, true);
         });
     </script>
