@@ -1,151 +1,125 @@
-# Journal App with AI Assistant
+# Journal AI 📔✨ - Your Reflective Companion
 
-A modern journal application that combines personal journaling with AI-powered assistance. Built with FastAPI for the backend and vanilla JavaScript for the frontend.
+**Journal AI** is more than just a digital diary; it's your personal space for self-reflection, enhanced by an intelligent and empathetic AI assistant. Securely capture your daily thoughts, feelings, and experiences, and then explore them further through insightful conversations or focused analysis powered by Google's Gemini AI.
 
-## Project Structure
+Whether you're looking to understand your emotions better, track personal growth, or simply need a non-judgmental space to process your day, Journal AI provides the tools you need.
 
-The project consists of two main components:
+**(Optional: Consider adding a screenshot or GIF of the app interface here)**
+<!-- ![Journal AI Screenshot](link/to/your/screenshot.png) -->
 
-### Frontend (`frontend/`)
-- Vanilla JavaScript-based web application
-  - `js/`: JavaScript source files
-  - `static/`: Static assets (CSS, images, etc.)
-  - HTML files: `index.html`, `journal.html`, `chat.html`, `test-connection.html`
+## What Journal AI Offers
 
-### Backend (`backend/`)
-FastAPI-based REST API server with the following structure:
-- `app/`: Main application package
-  - `main.py`: Application entry point and FastAPI app configuration
-  - `db/`: Database related code
-    - `database.py`: Database connection and session management
-    - `models.py`: SQLAlchemy models
-  - `routers/`: API route handlers
-    - `auth.py`: Authentication endpoints
-    - `journal.py`: Journal entry endpoints
-    - `chat.py`: AI chat endpoints
-  - `schemas/`: Pydantic models for request/response validation
-    - `schemas.py`: Base schemas
-    - `chat.py`: Chat-related schemas
-  - `services/`: Business logic and external service integration
-    - `ai_services.py`: Gemini AI integration
-    - `context_service.py`: Context management for AI interactions
-  - `core/`: Core application configuration
-  - `crud/`: Database CRUD operations
-  - `schemas.sql`: Database schema definitions
-- `requirements.txt`: Python dependencies
-- `.env`: Environment configuration
-- `run.sh`: Shell script for running the application
-- `run.py`: Application entry point
+*   **✍️ Secure & Private Journaling:** Effortlessly write, edit, view, and organize your journal entries in a clean, intuitive interface. Your thoughts are protected with secure user authentication.
+*   **💬 Context-Aware AI Chat:** Engage in meaningful conversations with an AI assistant that understands the context of your **most recent journal entries**. Ask questions, explore feelings, or simply chat – the AI listens and responds based on your recent writings, creating a uniquely personal experience. *Each chat session starts fresh, focusing on your current context.*
+*   **💡 AI-Powered Entry Consultation:** Select any specific journal entry and request an AI consultation. The AI analyzes the entry, considering its surrounding context (other recent entries), to provide focused reflections, empathetic feedback, and gentle prompts for deeper understanding.
+*   **🔒 Privacy Focused:** Your journal entries are stored securely in your own database instance, and authentication ensures only you can access your thoughts.
+*   **📱 Responsive Design:** Access and use your journal seamlessly across different devices (basic responsiveness assumed).
 
-## Prerequisites
+## Why Choose Journal AI?
 
-- Python 3.8+
-- PostgreSQL
-- Node.js (for development tools)
-- Google Gemini API key (for AI features)
+*   **Deeper Self-Reflection:** Go beyond simple recording. Use the AI chat and consultation features to explore patterns, understand triggers, and gain new perspectives on your own experiences.
+*   **Empathetic Listening:** Sometimes you just need to talk. The AI assistant is designed to be an empathetic, non-judgmental listener, available whenever you need it.
+*   **Track Your Journey:** Look back on your entries and AI interactions to see how you've grown and navigated life's ups and downs.
+*   **Secure Personal Space:** Keep your most private thoughts safe with user accounts and password protection.
 
-## Setup Instructions
+## Technology Stack
+
+*   **Backend:** FastAPI (Python), PostgreSQL, SQLAlchemy, Pydantic, JWT Authentication
+*   **AI:** Google Gemini API
+*   **Frontend:** Vanilla JavaScript, HTML5, CSS3 (No frameworks)
+
+## Getting Started (For Local Setup/Development)
+
+These instructions are for developers who want to run the application locally.
+
+### Prerequisites
+
+*   Python 3.8+ & Pip
+*   PostgreSQL Server (Running)
+*   Google Gemini API key
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+1.  **Clone & Navigate:**
+    ```bash
+    git clone <your-repo-url>
+    cd <your-repo-name>/backend
+    ```
+2.  **Virtual Environment:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate # Linux/macOS
+    # venv\Scripts\activate # Windows
+    ```
+3.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **Configure Environment (`.env`):**
+    Create a `.env` file in the `backend` directory with your specific settings:
+    ```dotenv
+    # Example .env content
+    DATABASE_URL=postgresql://your_db_user:your_db_password@localhost:5432/journal_ai_db
+    SECRET_KEY=a_very_strong_and_secret_key_please_change_me
+    ALGORITHM=HS256
+    ACCESS_TOKEN_EXPIRE_MINUTES=60
+    GEMINI=YOUR_GOOGLE_GEMINI_API_KEY_HERE
+    # SKIP_DB_INIT=false # Set to true if you manage migrations separately
+    ```
+    *   **Important:** Replace placeholders with your actual database credentials, a strong secret key, and your Gemini API key. Ensure your PostgreSQL server is running and the specified database exists.
+5.  **Initialize Database Schema:**
+    *   The application attempts to create tables on startup (`init_db()` in `database.py`). Ensure the database user has permission to create tables.
+    *   *Alternatively, if you prefer manual setup or have `SKIP_DB_INIT=true`*:
+        ```bash
+        # Connect to your PostgreSQL instance (e.g., using psql)
+        psql -U your_db_user -d journal_ai_db
+        # Manually create tables based on backend/app/db/models.py if needed
+        # (Or use a migration tool like Alembic in a real-world scenario)
+        ```
+6.  **Run the Backend Server:**
+    ```bash
+    # Using the provided script (if executable)
+    # ./run.sh
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Configure environment variables:
-   Create a `.env` file with the following variables:
-   ```
-   DATABASE_URL=postgresql://username:password@localhost/dbname
-   SECRET_KEY=your_secret_key
-   ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
-   GEMINI=your_gemini_api_key
-   ```
-
-5. Initialize the database:
-   ```bash
-   # Create the database schema
-   psql -U your_username -d your_database -f app/schemas.sql
-   ```
-
-6. Run the application:
-   ```bash
-   # Using the shell script
-   ./run.sh
-   
-   # Or directly with uvicorn
-   uvicorn run:app --reload
-   ```
+    # Or directly with uvicorn (recommended for development)
+    uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+    ```
+    The backend API will be available at `http://localhost:8000`.
 
 ### Frontend Setup
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+1.  **Navigate:**
+    ```bash
+    cd ../frontend # Assuming you are in the backend directory
+    ```
+2.  **Serve Files:**
+    The frontend consists of static HTML, CSS, and JS files. You can serve them using a simple HTTP server.
+    ```bash
+    python -m http.server 7000 # Or any other available port
+    ```
+    *   **Note:** Ensure the `API_BASE_URL` constant in `frontend/static/js/api.js` points to your running backend (e.g., `http://127.0.0.1:8000`).
 
-2. The frontend is built with vanilla JavaScript and can be served using any static file server. For development, you can use:
-   ```bash
-   python -m http.server 8000
-   ```
+## Usage
 
-## Features
-
-- User authentication and authorization
-- Journal entry management (CRUD operations)
-- AI-powered chat assistance using Google's Gemini API
-- Real-time connection testing
-- Responsive design
-- Secure API endpoints with JWT authentication
+1.  Ensure both the backend and frontend servers are running.
+2.  Open your web browser and navigate to the address where the frontend is being served (e.g., `http://localhost:7000`).
+3.  Register a new account or log in if you already have one.
+4.  Start journaling, chatting with the AI, or exploring past entries!
 
 ## API Documentation
 
-The backend API documentation is available at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+Interactive API documentation is automatically generated by FastAPI:
 
-## Security Considerations
-
-- JWT-based authentication
-- Environment variables for sensitive data
-- Password hashing with bcrypt
-- Secure session management
-
-## Development
-
-### Backend Development
-- FastAPI for API development
-- SQLAlchemy for database ORM
-- PostgreSQL as the database
-- Uvicorn as the ASGI server
-- Pydantic for data validation
-- JWT for authentication
-
-### Frontend Development
-- Vanilla JavaScript
-- HTML5 and CSS3
-- No external frameworks required
+*   **Swagger UI:** `http://localhost:8000/docs`
+*   **ReDoc:** `http://localhost:8000/redoc`
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please follow these steps:
 
-## License
+1.  Fork the repository.
+2.  Create your feature branch (`git checkout -b feature/your-feature-name`).
+3.  Commit your changes (`git commit -m 'Add some amazing feature'`).
+4.  Push to the branch (`git push origin feature/your-feature-name`).
+5.  Open a Pull Request.
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
