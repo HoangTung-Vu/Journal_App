@@ -58,10 +58,12 @@
                     <button id="get-ai-btn" class="primary"><i class="fas fa-robot"></i>AI</button>
                      <!-- AI Consultation Area -->
                      <div id="ai-consultation" class="ai-consultation hidden">
-                         <h3><i class="fas fa-brain"></i>Some AI Chat 🥹</h3>
-                          <div id="ai-loading" class="loading-indicator hidden"><i class="fas fa-spinner fa-spin"></i> Đang phân tích...</div>
-                         <div id="ai-content" class="ai-content"></div>
-                     </div>
+                        <h3><i class="fas fa-brain"></i> Tư vấn từ AI</h3>
+                        <div id="ai-loading" class="loading-indicator hidden">
+                            <i class="fas fa-spinner fa-spin"></i> Đang tải...
+                        </div>
+                        <div id="ai-content" class="ai-content"></div> <!-- Nội dung Markdown sẽ được hiển thị ở đây -->
+                    </div>     
                 </div>
 
                 <!-- Entry Editing/Creating Area -->
@@ -116,5 +118,6 @@
           showNotification(message, true);
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </body>
 </html>

@@ -73,7 +73,7 @@ class AIService:
             entry_date = entry.created_at.strftime('%Y-%m-%d %H:%M')
             context_str += f"\n--- Entry from {entry_date} (ID: {entry.id}) ---\n"
             context_str += f"Title: {entry.title}\n"
-            content_preview = (entry.content[:500] + '...') if len(entry.content) > 500 else entry.content
+            content_preview = (entry.content[:1000] + '...') if len(entry.content) > 1000 else entry.content
             context_str += f"Content:\n{content_preview}\n"
             context_str += "-----------------------------\n"
 

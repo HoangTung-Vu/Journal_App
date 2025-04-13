@@ -340,45 +340,44 @@ class JournalService {
    }
 
 
-  async handleGetAIConsultation() {
-    if (!this.currentEntryId) {
-        showNotification("Vui lòng chọn một bài viết để nhận tư vấn.", true);
-        return;
-    }
-     if (!this.aiConsultation || !this.aiContent || !this.aiLoading || !this.getAiBtn) return;
-
-
-     console.log(`Requesting AI consultation for entry ${this.currentEntryId}`);
-     this.getAiBtn.disabled = true;
-     this.getAiBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lấy tư vấn...';
-     this.aiConsultation.classList.remove("hidden"); // Show the section
-     this.aiLoading.classList.remove("hidden"); // Show loading indicator
-     this.aiContent.classList.add("hidden"); // Hide previous content
-     this.aiContent.textContent = ""; // Clear previous content
-
-    try {
-      const result = await apiService.getAIConsultation(this.currentEntryId);
-
-      if (result && result.consultation) {
-          this.aiContent.textContent = result.consultation; // Display new content
-           this.aiContent.classList.remove("hidden"); // Show content area
-          showNotification("Done!");
-      } else {
-          throw new Error("Phản hồi AI không hợp lệ.");
+   async handleGetAIConsultation() {
+      if (!this.currentEntryId) {
+          showNotification("Vui lòng chọn một bài viết để nhận tư vấn.", true);
+          return;
       }
+      if (!this.aiConsultation || !this.aiContent || !this.aiLoading || !this.getAiBtn) return;
 
-    } catch (error) {
-      console.error("Failed to get AI consultation:", error);
-      this.aiContent.innerHTML = `<p class="error"><i>Lỗi khi lấy tư vấn AI: ${error.message}</i></p>`; // Show error in content area
-       this.aiContent.classList.remove("hidden"); // Show error area
-      showNotification("Lấy tư vấn AI thất bại.", true);
-    } finally {
-        this.getAiBtn.disabled = false;
-        this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> AI';
-        this.aiLoading.classList.add("hidden"); // Hide loading indicator regardless of outcome
+      console.log(`Requesting AI consultation for entry ${this.currentEntryId}`);
+      this.getAiBtn.disabled = true;
+      this.getAiBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...'; // Hiển thị spinner
+      this.aiConsultation.classList.remove("hidden"); // Hiển thị khu vực AI Consultation
+      this.aiLoading.classList.remove("hidden"); // Hiển thị trạng thái đang tải
+      this.aiContent.classList.add("hidden"); // Ẩn nội dung cũ
+      this.aiContent.textContent = ""; // Xóa nội dung cũ
+
+      try {
+          const result = await apiService.getAIConsultation(this.currentEntryId);
+
+          if (result && result.consultation) {
+              // Chuyển đổi Markdown thành HTML bằng marked.js
+              const markdownContent = result.consultation;
+              this.aiContent.innerHTML = marked.parse(markdownContent); // Render Markdown thành HTML
+              this.aiContent.classList.remove("hidden"); // Hiển thị nội dung
+              showNotification("Tư vấn AI đã sẵn sàng!");
+          } else {
+              throw new Error("Phản hồi AI không hợp lệ.");
+          }
+      } catch (error) {
+          console.error("Failed to get AI consultation:", error);
+          this.aiContent.innerHTML = `<p class="error"><i>Lỗi khi lấy tư vấn AI: ${error.message}</i></p>`; // Hiển thị lỗi
+          this.aiContent.classList.remove("hidden"); // Hiển thị khu vực lỗi
+          showNotification("Lấy tư vấn AI thất bại.", true);
+      } finally {
+          this.getAiBtn.disabled = false;
+          this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> AI';
+          this.aiLoading.classList.add("hidden"); // Ẩn trạng thái đang tải
+      }
     }
-  }
-
    showPlaceholderView() {
      if (!this.entryView || !this.entryEditor || !this.noEntrySelectedView) return;
      console.log("Showing placeholder view");

@@ -8,4 +8,5 @@ python-jose[cryptography] # For JWT
 python-dotenv     # For loading .env file
 pydantic[email]
 torch
+google-generativeai
 transformers
