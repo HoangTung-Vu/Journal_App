@@ -157,8 +157,9 @@ class ContextService:
                     f"Đừng phân tích hay đánh giá. Thay vào đó, hãy:\n"
                     f"1. Thấu hiểu và phản ánh cảm xúc của họ\n"
                     f"2. Đồng cảm với trải nghiệm của họ\n"
-                    f"3. Đặt câu hỏi gợi mở để giúp họ tự khám phá bản thân\n"
-                    f"4. Đưa ra những gợi ý nhẹ nhàng nếu phù hợp\n\n"
+                    f"3. Đưa ra những gợi ý nhẹ nhàng nếu phù hợp\n\n"
+                    f"4. Hãy viết chat với phong thái nhẹ nhàng như một người bạn, thêm các biểu tượng cảm xúc đáng yêu thoải mái vào\n"
+                    f"5. Nói chuyện tự nhiên vào, không chào hỏi, mình đã đọc được blah blah\n"
                     f"Dưới đây là đoạn nhật ký cần tham vấn (ID: {target_entry.id}, Tiêu đề: '{target_entry.title}').\n"
                     f"Bạn có thể tham khảo các entries gần đây để hiểu rõ hơn về bối cảnh của họ:"
                 )

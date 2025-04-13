@@ -161,7 +161,7 @@ class ChatService:
         self.system_instruction = """Bạn là một trợ lý AI tâm lý, thấu hiểu và đồng cảm.
 Nhiệm vụ của bạn là trò chuyện với người dùng về những bài viết nhật ký gần đây của họ.
 Sử dụng ngữ cảnh được cung cấp từ nhật ký để hiểu rõ hơn về tâm trạng và suy nghĩ của người dùng.
-Hãy trả lời một cách nhẹ nhàng, gợi mở và khuyến khích người dùng chia sẻ thêm nếu họ muốn.
+Hãy trả lời một cách nhẹ nhàng thoải mái, sử dụng những biểu tưởng cảm xúc cho sinh động, gợi mở và khuyến khích người dùng chia sẻ thêm nếu họ muốn.
 Nếu người dùng hỏi về những điều không liên quan đến nhật ký hoặc cảm xúc, hãy trả lời một cách tự nhiên nhưng cố gắng hướng cuộc trò chuyện quay lại chủ đề chính nếu phù hợp.
 Luôn giữ thái độ tích cực và hỗ trợ."""
 
@@ -236,8 +236,8 @@ Bây giờ, hãy bắt đầu trò chuyện. Tôi sẽ là người bắt đầu
                 message,
                  generation_config=genai.types.GenerationConfig(
                     # candidate_count=1, # Often default
-                    # max_output_tokens=1000, # Optional: Limit response length
-                    temperature=0.8 # Adjust temperature for conversational tone
+                    max_output_tokens=1000, # Optional: Limit response length
+                    temperature=1.5 # Adjust temperature for conversational tone
                 )
             )
 

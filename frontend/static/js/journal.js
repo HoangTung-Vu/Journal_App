@@ -165,7 +165,7 @@ class JournalService {
       this.aiConsultation.classList.add("hidden");
       this.aiContent.textContent = ""; // Clear previous AI content
       this.getAiBtn.disabled = false; // Re-enable AI button
-      this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> Nhận tư vấn AI';
+      this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> AI';
 
       // Update active selection in the list
       this.renderEntriesList();
@@ -374,7 +374,7 @@ class JournalService {
       showNotification("Lấy tư vấn AI thất bại.", true);
     } finally {
         this.getAiBtn.disabled = false;
-        this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> Nhận tư vấn AI';
+        this.getAiBtn.innerHTML = '<i class="fas fa-robot"></i> AI';
         this.aiLoading.classList.add("hidden"); // Hide loading indicator regardless of outcome
     }
   }
