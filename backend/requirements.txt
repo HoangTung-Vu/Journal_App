@@ -1,0 +1,9 @@
+# backend/requirements.txt
+fastapi[all]
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary  # PostgreSQL driver
+passlib[bcrypt]
+python-jose[cryptography] # For JWT
+python-dotenv     # For loading .env file
+pydantic[email]

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Connection Test</title>
+    <link rel="stylesheet" href="/static/css/style.css"> <!-- Link base style -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .card {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+         .card h2 {
+             margin-top: 0;
+             color: var(--primary-color);
+             border-bottom: 1px solid #eee;
+             padding-bottom: 10px;
+             margin-bottom: 15px;
+         }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #eee;
+            border: 1px solid #ddd;
+            font-size: 0.9em;
+            word-wrap: break-word;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+            border-left: 3px solid green;
+            padding-left: 8px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+             border-left: 3px solid red;
+             padding-left: 8px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background-color 0.2s ease;
+        }
+         button:hover {
+             background-color: var(--primary-dark);
+         }
+        input[type="email"], input[type="password"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: monospace;
+            font-size: 0.9em;
+            border: 1px dashed #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <p>Kiểm tra kết nối và các endpoint cơ bản của backend FastAPI.</p>
+    <p><a href="/">Về trang chủ</a> | <a href="/journal.html">Vào ứng dụng</a></p>
+
+    <div class="card">
+        <h2>Backend Connection & Health</h2>
+        <button id="test-health">Test Health Check (/api/health)</button>
+        <button id="test-ping">Test Ping (/api/debug/ping)</button>
+        <button id="test-config">Test Config (/api/debug/config)</button>
+        <div id="health-result" class="result">Chưa kiểm tra.</div>
+    </div>
+
+    <div class="card">
+        <h2>Authentication Test (/api/v1/auth/token)</h2>
+        <form id="test-auth-form">
+            <div>
+                <label for="email">Email:</label>
+                <input type="email" id="email" required value="test@example.com">
+            </div>
+            <div>
+                <label for="password">Password:</label>
+                <input type="password" id="password" required value="password">
+            </div>
+            <div style="margin-top: 10px;">
+                <button type="submit">Test Login</button>
+                 <button type="button" id="test-register">Test Register (New User)</button>
+                 <button type="button" id="test-me">Test /users/me (Needs Token)</button>
+            </div>
+        </form>
+        <div id="auth-result" class="result">Chưa kiểm tra.</div>
+         <small>Lưu ý: Token (nếu nhận được) sẽ được lưu vào localStorage ('apiTestToken').</small>
+    </div>
+
+     <div class="card">
+        <h2>Journal Test (Needs Token)</h2>
+         <button id="test-get-journals">Test GET /journal</button>
+         <button id="test-create-journal">Test POST /journal</button>
+         <p>Entry ID để test GET/POST AI (sau khi tạo): <input type="number" id="test-entry-id" placeholder="Entry ID"></p>
+         <button id="test-get-ai">Test POST /journal/{id}/consult</button>
+        <div id="journal-result" class="result">Chưa kiểm tra.</div>
+     </div>
+
+    <script>
+        const API_BASE_URL = "http://127.0.0.1:8000"; // Or your actual API base URL
+
+        // --- Helper Function ---
+        async function runTest(buttonId, resultDivId, url, options = {}) {
+            const button = document.getElementById(buttonId);
+            const resultDiv = document.getElementById(resultDivId);
+            const originalButtonText = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Đang chạy...';
+            resultDiv.innerHTML = "Đang thực thi yêu cầu...";
+
+            const token = localStorage.getItem('apiTestToken');
+            const headers = {
+                 'Content-Type': 'application/json',
+                 ...options.headers
+             };
+             if (token && !options.skipAuth) {
+                 headers['Authorization'] = `Bearer ${token}`;
+             }
+             if (options.isFormData) {
+                  delete headers['Content-Type']; // Browser sets this for FormData/URLSearchParams
+             }
+
+            try {
+                const response = await fetch(API_BASE_URL + url, {
+                    method: options.method || 'GET',
+                    headers: headers,
+                    body: options.body // Can be JSON string, URLSearchParams, etc.
+                });
+
+                let data;
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    data = await response.json();
+                } else if (response.status === 204) { // No Content
+                     data = { status: 'Success (204 No Content)' };
+                }
+                else {
+                    data = { statusText: response.statusText, status: response.status };
+                }
+
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `<p class="success">Thành công! (Status: ${response.status})</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    // Store token on successful login
+                    if (url.includes('/auth/token') && data.access_token) {
+                        localStorage.setItem('apiTestToken', data.access_token);
+                         resultDiv.innerHTML += "<p><em>Token đã được lưu vào localStorage ('apiTestToken').</em></p>";
+                    }
+                     // Store created entry ID
+                     if (url.includes('/journal') && options.method === 'POST' && data.id) {
+                         document.getElementById('test-entry-id').value = data.id;
+                          resultDiv.innerHTML += "<p><em>ID bài viết mới đã được điền vào ô input.</em></p>";
+                     }
+
+                } else {
+                    resultDiv.innerHTML = `<p class="error">Thất bại! (Status: ${response.status})</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Lỗi kết nối hoặc xử lý!</p><p>Error: ${error.message}</p><pre>${error.stack}</pre>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = originalButtonText;
+            }
+        }
+
+        // --- Event Listeners ---
+
+        // Health / Ping / Config
+        document.getElementById('test-health').addEventListener('click', () => runTest('test-health', 'health-result', '/api/health'));
+        document.getElementById('test-ping').addEventListener('click', () => runTest('test-ping', 'health-result', '/api/debug/ping'));
+        document.getElementById('test-config').addEventListener('click', () => runTest('test-config', 'health-result', '/api/debug/config'));
+
+        // Auth: Login
+        document.getElementById('test-auth-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const formData = new URLSearchParams();
+            formData.append("username", email);
+            formData.append("password", password);
+
+            runTest(e.submitter.id, 'auth-result', '/api/v1/auth/token', {
+                method: 'POST',
+                body: formData,
+                isFormData: true, // Use URLSearchParams
+                skipAuth: true    // Don't send existing token for login
+            });
+        });
+
+        // Auth: Register
+         document.getElementById('test-register').addEventListener('click', () => {
+             const randomSuffix = Math.random().toString(36).substring(2, 8);
+             const email = `testuser_${randomSuffix}@example.com`;
+             const password = "password123";
+              document.getElementById('auth-result').innerHTML = `Đang thử đăng ký với email: ${email}`;
+
+             runTest('test-register', 'auth-result', '/api/v1/auth/register', {
+                 method: 'POST',
+                 body: JSON.stringify({ email, password }),
+                 skipAuth: true
+             });
+         });
+
+
+        // Auth: /users/me
+        document.getElementById('test-me').addEventListener('click', () => {
+             if (!localStorage.getItem('apiTestToken')) {
+                  document.getElementById('auth-result').innerHTML = `<p class="error">Không tìm thấy token trong localStorage. Vui lòng đăng nhập trước.</p>`;
+                  return;
+              }
+             runTest('test-me', 'auth-result', '/api/v1/auth/users/me'); // Default GET, needs auth
+        });
+
+        // Journal: Get All
+         document.getElementById('test-get-journals').addEventListener('click', () => {
+             if (!localStorage.getItem('apiTestToken')) {
+                 document.getElementById('journal-result').innerHTML = `<p class="error">Cần token để test. Vui lòng đăng nhập trước.</p>`; return;
+             }
+             runTest('test-get-journals', 'journal-result', '/api/v1/journal/');
+         });
+
+         // Journal: Create
+         document.getElementById('test-create-journal').addEventListener('click', () => {
+             if (!localStorage.getItem('apiTestToken')) {
+                 document.getElementById('journal-result').innerHTML = `<p class="error">Cần token để test. Vui lòng đăng nhập trước.</p>`; return;
+             }
+             const entryData = {
+                 title: `Test Entry ${new Date().toLocaleTimeString()}`,
+                 content: "Đây là nội dung test được tạo tự động."
+             };
+             runTest('test-create-journal', 'journal-result', '/api/v1/journal/', {
+                 method: 'POST',
+                 body: JSON.stringify(entryData)
+             });
+         });
+
+         // Journal: AI Consult
+         document.getElementById('test-get-ai').addEventListener('click', () => {
+             if (!localStorage.getItem('apiTestToken')) {
+                 document.getElementById('journal-result').innerHTML = `<p class="error">Cần token để test. Vui lòng đăng nhập trước.</p>`; return;
+             }
+             const entryId = document.getElementById('test-entry-id').value;
+             if (!entryId) {
+                 document.getElementById('journal-result').innerHTML = `<p class="error">Vui lòng nhập Entry ID để test AI.</p>`; return;
+             }
+             runTest('test-get-ai', 'journal-result', `/api/v1/journal/${entryId}/consult`, {
+                 method: 'POST' // No body needed as per current API design
+             });
+         });
+
+    </script>
+</body>
+</html>
