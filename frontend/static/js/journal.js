@@ -363,7 +363,7 @@ class JournalService {
               const markdownContent = result.consultation;
               this.aiContent.innerHTML = marked.parse(markdownContent); // Render Markdown thành HTML
               this.aiContent.classList.remove("hidden"); // Hiển thị nội dung
-              showNotification("Tư vấn AI đã sẵn sàng!");
+              showNotification("Done!");
           } else {
               throw new Error("Phản hồi AI không hợp lệ.");
           }
