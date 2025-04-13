@@ -1,113 +1,97 @@
+// --- START OF FILE frontend/static/js/auth.js ---
 // Authentication and User Session Management
 
 // Import API service and utility functions
 import { apiService } from './api.js';
-import { showNotification } from './utils.js'; // Assuming utils.js exports this
+import { showNotification } from './utils.js';
 
 class AuthService {
   constructor() {
-    // DOM elements related to authentication (might be on index.html or journal.html)
+    // DOM elements related to authentication (might be on index.html or journal.html/chat.html)
     this.authContainer = document.getElementById("auth-container"); // On index.html
-    this.journalContainer = document.getElementById("journal-container"); // On journal.html (used conceptually)
-    this.userEmailSpan = document.getElementById("user-email"); // On journal.html
-    this.logoutBtn = document.getElementById("logout-btn"); // On journal.html
+    // User display/logout elements (common to journal.html & chat.html)
+    this.userEmailSpan = document.getElementById("user-email");
+    this.logoutBtn = document.getElementById("logout-btn");
 
-    // Forms (on index.html)
+    // Auth page specific forms/elements
     this.loginForm = document.getElementById("login");
     this.registerForm = document.getElementById("register");
     this.tabButtons = document.querySelectorAll(".tab-btn");
     this.authForms = document.querySelectorAll(".auth-form");
-    this.notificationAreaAuth = document.getElementById("notification-auth"); // Specific area on auth page
+    this.notificationAreaAuth = document.getElementById("notification-auth");
 
     // Internal state
     this.currentUser = null;
-
-    // Check if user is already logged in when service is created
-    // this.checkAuthStatus(); // Moved to explicit init methods
   }
 
   // Initialization specific to the Authentication page (index.html)
   initAuthPage() {
     console.log("Initializing Auth Page Logic");
-     this.redirectIfLoggedIn(); // Redirect if already logged in
+    this.redirectIfLoggedIn('/journal.html'); // Redirect logged-in users away from auth page
 
     if (!this.authContainer) {
          console.warn("Auth container not found. Skipping auth page event listeners.");
          return;
     }
-
     // Setup event listeners for tab switching
     this.tabButtons.forEach(button => {
       button.addEventListener("click", (e) => {
-         e.preventDefault(); // Prevent default if it's a button inside a form
+         e.preventDefault();
         const tabName = button.getAttribute("data-tab");
         this.switchTab(tabName);
       });
     });
-
     // Setup form submission handlers
-    if (this.loginForm) {
-      this.loginForm.addEventListener("submit", this.handleLogin.bind(this));
-    } else {
-        console.warn("Login form not found.");
-    }
-    if (this.registerForm) {
-      this.registerForm.addEventListener("submit", this.handleRegister.bind(this));
-    } else {
-         console.warn("Register form not found.");
-    }
+    if (this.loginForm) this.loginForm.addEventListener("submit", this.handleLogin.bind(this));
+    if (this.registerForm) this.registerForm.addEventListener("submit", this.handleRegister.bind(this));
   }
 
   // Initialization specific to the Journal page (journal.html)
   initJournalPage() {
      console.log("Initializing Journal Page Auth Logic");
-     if (!apiService.token) {
-          console.log("No token found, redirecting to login.");
-          this.redirectToLogin();
-          return; // Stop initialization if not logged in
-     }
-
-     // Setup logout button listener
-     if (this.logoutBtn) {
-          this.logoutBtn.addEventListener("click", this.handleLogout.bind(this));
-     } else {
-          console.warn("Logout button not found.");
-     }
-
-     // Load user info for display
-     this.loadUserInfo();
+     this.checkLoginStatusAndSetupUserUI();
   }
 
-  // Initialization specific to the Chat page (chat.html)
+  // Initialization specific to the Chat page (chat.html) <-- ADD THIS
   initChatPage() {
      console.log("Initializing Chat Page Auth Logic");
+     this.checkLoginStatusAndSetupUserUI();
+  }
+
+  // Common logic for authenticated pages (Journal, Chat)
+  checkLoginStatusAndSetupUserUI() {
      if (!apiService.token) {
           console.log("No token found, redirecting to login.");
           this.redirectToLogin();
-          return; // Stop initialization if not logged in
+          return false; // Indicate user is not logged in
      }
-
-     // Setup logout button listener
+     // Setup logout button listener if it exists on the page
      if (this.logoutBtn) {
           this.logoutBtn.addEventListener("click", this.handleLogout.bind(this));
      } else {
-          console.warn("Logout button not found.");
+          console.warn("Logout button not found on this page.");
      }
-
-     // Load user info for display
-     this.loadUserInfo();
+     // Load user info for display if the element exists
+     if (this.userEmailSpan) {
+          this.loadUserInfo();
+     } else {
+          console.warn("User email display element not found on this page.");
+     }
+     return true; // Indicate user is logged in
   }
+
 
   // --- Auth Page Methods ---
 
-   redirectIfLoggedIn() {
+   redirectIfLoggedIn(targetUrl = '/journal.html') {
        if (apiService.token) {
-            console.log("Token exists, redirecting to journal page.");
-            window.location.href = '/journal.html';
+            console.log(`Token exists, redirecting from auth page to ${targetUrl}.`);
+            window.location.href = targetUrl;
        }
    }
 
    redirectToLogin() {
+        console.log("Redirecting to login page.");
         apiService.clearToken(); // Ensure token is cleared before redirect
         window.location.href = '/'; // Redirect to root (index.html)
    }
@@ -116,39 +100,22 @@ class AuthService {
         const area = this.notificationAreaAuth;
         if (!area) return;
         area.textContent = message;
-        area.className = isError ? 'error' : 'success'; // Use simple classes
+        area.className = ''; // Clear previous classes
+        area.classList.add('notification-auth', isError ? 'error' : 'success');
         area.style.display = 'block';
-
-         // Optional: auto-hide after a delay
-        // setTimeout(() => {
-        //     area.style.display = 'none';
-        //     area.textContent = '';
-        //     area.className = '';
-        // }, 5000);
    }
 
   switchTab(tabName) {
     console.log("Switching to tab:", tabName);
      this.clearAuthNotifications();
-
-    // Update active tab button
     this.tabButtons.forEach(button => {
         button.classList.toggle("active", button.getAttribute("data-tab") === tabName);
     });
-
-    // Show corresponding form
     this.authForms.forEach(form => {
         form.classList.toggle("active", form.id === `${tabName}-form`);
     });
-
-     // Focus the first input field of the active form
      const activeForm = document.querySelector(`.auth-form.active`);
-     if (activeForm) {
-         const firstInput = activeForm.querySelector('input');
-         if (firstInput) {
-             firstInput.focus();
-         }
-     }
+     if (activeForm) activeForm.querySelector('input')?.focus();
   }
 
   async handleLogin(event) {
@@ -156,8 +123,8 @@ class AuthService {
     this.clearAuthNotifications();
     const emailInput = document.getElementById("login-email");
     const passwordInput = document.getElementById("login-password");
-    const email = emailInput.value.trim();
-    const password = passwordInput.value; // Don't trim password
+    const email = emailInput?.value.trim();
+    const password = passwordInput?.value;
 
     if (!email || !password) {
         this.showAuthNotification("Vui lòng nhập email và mật khẩu.", true);
@@ -170,24 +137,21 @@ class AuthService {
 
     try {
       const result = await apiService.login(email, password);
-      if (result && result.access_token) {
+      if (result?.access_token) {
          apiService.setToken(result.access_token);
          this.showAuthNotification("Đăng nhập thành công! Đang chuyển hướng...", false);
-         // Redirect to the main journal page after successful login
-         setTimeout(() => {
-             window.location.href = '/journal.html';
-         }, 1000); // Short delay to show message
-      } else {
-          // This case might not happen if apiService throws error on failure
-           throw new Error("Login failed: No access token received.");
-      }
+         setTimeout(() => { window.location.href = '/journal.html'; }, 1000);
+      } else { throw new Error("Login failed: No access token received."); }
     } catch (error) {
       console.error("Login error:", error);
-      // Display error message from the API or a generic one
-      this.showAuthNotification(`Đăng nhập thất bại: ${error.message}`, true);
-      passwordInput.value = ''; // Clear password field on error
-      submitButton.disabled = false;
-      submitButton.textContent = 'Đăng nhập';
+      const errorMsg = error.message.includes('401') ? "Sai email hoặc mật khẩu." : `Đăng nhập thất bại: ${error.message}`;
+      this.showAuthNotification(errorMsg, true);
+      if (passwordInput) passwordInput.value = ''; // Clear password field
+    } finally {
+         if (submitButton) {
+             submitButton.disabled = false;
+             submitButton.textContent = 'Đăng nhập';
+         }
     }
   }
 
@@ -198,22 +162,17 @@ class AuthService {
     const passwordInput = document.getElementById("register-password");
     const confirmPasswordInput = document.getElementById("register-confirm-password");
 
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-    const confirmPassword = confirmPasswordInput.value;
+    const email = emailInput?.value.trim();
+    const password = passwordInput?.value;
+    const confirmPassword = confirmPasswordInput?.value;
 
-    if (!email || !password || !confirmPassword) {
-         this.showAuthNotification("Vui lòng điền đầy đủ thông tin.", true);
-         return;
-    }
-    if (password !== confirmPassword) {
-      this.showAuthNotification("Mật khẩu xác nhận không khớp.", true);
-      return;
-    }
-     if (password.length < 6) {
-          this.showAuthNotification("Mật khẩu phải có ít nhất 6 ký tự.", true);
-          return;
-     }
+    // Input validation
+    if (!email || !password || !confirmPassword) { this.showAuthNotification("Vui lòng điền đầy đủ thông tin.", true); return; }
+    if (password !== confirmPassword) { this.showAuthNotification("Mật khẩu xác nhận không khớp.", true); return; }
+    if (password.length < 6) { this.showAuthNotification("Mật khẩu phải có ít nhất 6 ký tự.", true); return; }
+     // Basic email format check (browser usually handles this via type="email")
+     if (!/\S+@\S+\.\S+/.test(email)) { this.showAuthNotification("Vui lòng nhập địa chỉ email hợp lệ.", true); return; }
+
 
      const submitButton = this.registerForm.querySelector('button[type="submit"]');
      submitButton.disabled = true;
@@ -221,21 +180,28 @@ class AuthService {
 
     try {
       await apiService.register(email, password);
-      this.showAuthNotification("Đăng ký thành công! Vui lòng đăng nhập.", false);
-      // Switch to the login tab after successful registration
+      this.showAuthNotification("Đăng ký thành công! Vui lòng chuyển qua tab Đăng nhập.", false);
       this.switchTab('login');
-       // Optionally clear registration form
-       emailInput.value = '';
-       passwordInput.value = '';
-       confirmPasswordInput.value = '';
-       document.getElementById('login-email').value = email; // Pre-fill login email
-       document.getElementById('login-password').focus();
+       // Pre-fill login email after successful registration
+       const loginEmailInput = document.getElementById('login-email');
+       if (loginEmailInput) loginEmailInput.value = email;
+       document.getElementById('login-password')?.focus();
+       // Clear registration form
+       if (emailInput) emailInput.value = '';
+       if (passwordInput) passwordInput.value = '';
+       if (confirmPasswordInput) confirmPasswordInput.value = '';
+
     } catch (error) {
       console.error("Registration error:", error);
-      this.showAuthNotification(`Đăng ký thất bại: ${error.message}`, true);
+       const errorMsg = error.message.includes('400') && error.message.includes('Email already registered')
+                       ? "Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập."
+                       : `Đăng ký thất bại: ${error.message}`;
+      this.showAuthNotification(errorMsg, true);
     } finally {
-        submitButton.disabled = false;
-        submitButton.textContent = 'Đăng ký';
+         if (submitButton) {
+             submitButton.disabled = false;
+             submitButton.textContent = 'Đăng ký';
+         }
     }
   }
 
@@ -243,29 +209,27 @@ class AuthService {
        if (this.notificationAreaAuth) {
            this.notificationAreaAuth.style.display = 'none';
            this.notificationAreaAuth.textContent = '';
-           this.notificationAreaAuth.className = '';
+           this.notificationAreaAuth.className = 'notification-auth'; // Reset class
        }
    }
 
 
-  // --- Journal Page Methods ---
+  // --- Authenticated Page Methods ---
 
   async loadUserInfo() {
      if (!this.userEmailSpan) return; // Only run if element exists
+     this.userEmailSpan.textContent = 'Đang tải...'; // Placeholder
 
      try {
          const user = await apiService.getCurrentUser();
          this.currentUser = user;
-         if (this.userEmailSpan) {
-              this.userEmailSpan.textContent = `Chào, ${user.email}`;
-         }
+         this.userEmailSpan.textContent = `Chào, ${user.email}`;
      } catch (error) {
          console.error("Failed to load user info:", error);
+         this.userEmailSpan.textContent = 'Lỗi tải thông tin';
          // If fetching user fails (e.g., token invalid/expired), redirect to login
-         showNotification("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.", true);
-         setTimeout(() => {
-             this.redirectToLogin();
-         }, 1500);
+         showNotification("Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Đang chuyển hướng...", true, 'notification'); // Use global notification
+         setTimeout(() => { this.redirectToLogin(); }, 2000);
      }
    }
 
@@ -273,14 +237,12 @@ class AuthService {
     console.log("Logging out...");
     apiService.clearToken();
     this.currentUser = null;
-    // Redirect to the login page after logout
-    showNotification("Đăng xuất thành công.", false);
-     setTimeout(() => {
-        this.redirectToLogin();
-     }, 1000);
+    showNotification("Đăng xuất thành công. Đang chuyển hướng...", false, 'notification'); // Use global notification
+     setTimeout(() => { this.redirectToLogin(); }, 1000);
   }
 
 }
 
 // Export the class for use in HTML modules
 export { AuthService };
+// --- END OF FILE frontend/static/js/auth.js ---

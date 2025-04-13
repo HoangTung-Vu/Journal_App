@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Journal - Chat với AI</title>
+    <title>AI Journal - Trò chuyện</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Link base styles -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Link specific chat styles -->
+    <link rel="stylesheet" href="/static/css/chat.css">
 </head>
 <body>
+    <!-- Header (reuse from journal.html structure) -->
     <div class="header">
-        <h1>
-            <a href="/journal.html" class="no-decoration">
-                <i class="fas fa-book-open"></i> AI Journal
-            </a>
-        </h1>
+        <h1><i class="fas fa-comments"></i> Trò chuyện với AI</h1>
         <div class="user-info">
             <span id="user-email">Đang tải...</span>
+            <!-- Link back to Journal -->
             <a href="/journal.html" class="button outline">
-                <i class="fas fa-book"></i> Nhật ký
+                <i class="fas fa-book"></i> Xem Nhật ký
             </a>
             <button id="logout-btn" class="outline">Đăng xuất</button>
         </div>
@@ -27,66 +28,60 @@
     <div id="notification" class="notification"></div>
 
     <!-- Main Chat Container -->
-    <div class="app-container">
-        <div id="chat-container">
-            <div id="chat-messages">
-                <!-- Initial welcome message -->
-                <div class="message ai">
-                    <p>👋 Xin chào! Tôi là trợ lý AI của bạn.</p>
-                    <p>Tôi có thể giúp bạn:</p>
-                    <ul>
-                        <li>Phân tích cảm xúc và tâm trạng từ các bài viết nhật ký</li>
-                        <li>Đưa ra lời khuyên và góc nhìn mới</li>
-                        <li>Trả lời các câu hỏi dựa trên ngữ cảnh từ nhật ký của bạn</li>
-                    </ul>
-                    <p><i>Lưu ý: Tôi sẽ sử dụng ngữ cảnh từ 5 bài viết gần nhất của bạn để tư vấn tốt hơn.</i></p>
-                </div>
+    <div class="app-container chat-app-container"> <!-- Added specific class -->
+        <div class="chat-container" id="chat-container">
+            <div id="chat-messages" class="messages-container">
+                <!-- Initial welcome/loading message can be added by JS -->
             </div>
-            <div id="chat-input-area">
-                <textarea 
-                    id="chat-input" 
-                    placeholder="Nhập tin nhắn của bạn (Shift+Enter để xuống dòng)"
-                    rows="1"
-                ></textarea>
-                <button id="send-chat-btn" class="primary" title="Gửi tin nhắn">
+            <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                 <!-- <p>AI đang suy nghĩ...</p> -->
+            </div>
+            <div class="input-container" id="chat-input-area">
+                <textarea id="message-input" placeholder="Nhập tin nhắn của bạn ở đây..." rows="1"></textarea>
+                <button id="send-button" title="Gửi tin nhắn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
-            </div>
-            <!-- Loading indicator -->
-            <div id="chat-loading" class="loading-indicator hidden">
-                <i class="fas fa-spinner fa-spin"></i> Đang xử lý...
             </div>
         </div>
     </div>
 
+    <!-- Load Marked library for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Import JS Modules -->
     <script type="module">
+        // Import necessary services/modules
         import { AuthService } from '/static/js/auth.js';
-        import { ChatService } from '/static/js/chat.js';
+        import { ChatService } from '/static/js/chat.js'; // Import ChatService
         import { showNotification } from '/static/js/utils.js';
+        import { apiService } from '/static/js/api.js'; // apiService is used by ChatService
 
-        // Initialize services
+        // Initialize services for the chat page
         const authService = new AuthService();
-        const chatService = new ChatService();
+        const chatService = new ChatService(); // Instantiate ChatService
 
-        // Initialize Auth first to check login status and load user info
-        await authService.initChatPage();
+        // Initialize Auth first to check login status and load user info/logout button
+        authService.initChatPage(); // Dedicated init for this page
 
         // Initialize Chat service after ensuring user is logged in
-        chatService.init();
+        // ChatService constructor now handles its initialization logic
+        // No separate chatService.init() needed unless designed differently
 
-        // Setup global error handler
+        // Setup global error handler (optional, but good practice)
         window.addEventListener("unhandledrejection", (event) => {
-            console.error("Unhandled Promise Rejection:", event.reason);
-            const message = event.reason?.message || "Lỗi không mong muốn xảy ra.";
-            showNotification(message, true);
+             console.error("Unhandled Promise Rejection:", event.reason);
+             const message = event.reason?.detail || event.reason?.message || "Lỗi không mong muốn xảy ra.";
+             showNotification(message, true);
         });
-
         window.addEventListener("error", (event) => {
-            console.error("Unhandled error:", event.error);
-            const message = event.error?.message || "Lỗi không mong muốn xảy ra.";
-            showNotification(message, true);
+          console.error("Unhandled error:", event.error);
+          const message = event.error?.detail || event.error?.message || "Lỗi không mong muốn xảy ra.";
+          showNotification(message, true);
         });
     </script>
 </body>
-</html> 
+</html>

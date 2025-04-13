@@ -1,3 +1,4 @@
+// --- START OF FILE frontend/static/js/api.js ---
 // API service for making requests to the backend
 
 const API_BASE_URL = "http://127.0.0.1:8000"; // Ensure no trailing slash initially
@@ -8,8 +9,9 @@ class ApiService {
     this.baseURL = baseURL;
     this.token = localStorage.getItem("journalToken"); // Use a specific key
     console.log("ApiService Initialized. Token found:", !!this.token);
-    this.maxRetries = 3;
-    this.retryDelay = 1000; // 1 second
+    // Retry logic might be too aggressive for general use, remove or refine if needed
+    // this.maxRetries = 1; // Reduce default retries maybe
+    // this.retryDelay = 1500;
   }
 
   // Set authentication token
@@ -32,131 +34,149 @@ class ApiService {
 
   // Get headers for requests
   getHeaders(isFormData = false) {
-    const headers = {};
+    const headers = {
+        // Standard headers
+        'Accept': 'application/json',
+    };
 
     if (!isFormData) {
+        // Only set Content-Type for non-FormData requests where body exists
         headers["Content-Type"] = "application/json";
     }
-    // Only add Authorization header if token exists
+    // Add Authorization header if token exists
     if (this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
-    // console.log("Request Headers:", headers); // Debug headers
     return headers;
   }
 
   // Unified request function
   async request(endpoint, options = {}) {
-      const url = this.baseURL + endpoint;
-      const method = options.method || 'GET';
-      const isFormData = options.isFormData || false;
-      const skipAuth = options.skipAuth || false;
+    const url = `${this.baseURL}${endpoint}`;
+    // Determine if headers need Content-Type based on body presence and type
+    const isFormData = options.body instanceof FormData || options.body instanceof URLSearchParams;
+    const headers = this.getHeaders(isFormData);
 
-      // Prepare body
-      let body = options.body;
-      if (isFormData && body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
-          const formData = new URLSearchParams();
-          for (const key in body) {
-              if (Object.hasOwnProperty.call(body, key)) {
-                  formData.append(key, body[key]);
-              }
-          }
-          body = formData;
-      } else if (body && typeof body !== 'string' && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
-          body = JSON.stringify(body);
+    let body = options.body;
+    // Adjust Content-Type for specific body types if necessary
+    if (options.body && typeof options.body === 'object' && !isFormData) {
+      body = JSON.stringify(body);
+      // Ensure Content-Type is application/json if not already set
+      if (!headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
       }
+    } else if (isFormData) {
+         // Let the browser set the Content-Type for FormData/URLSearchParams
+         delete headers['Content-Type'];
+    }
 
-      const fetchOptions = {
-          method: method,
-          headers: this.getHeaders(isFormData || (body instanceof URLSearchParams)),
-          body: body
-      };
+    console.log(`API Request: ${options.method || 'GET'} ${url}`);
+    // Avoid logging body if it contains sensitive info like passwords
+    // if(body && !url.includes('token') && !url.includes('register')) {
+    //     console.log("Request Body:", body);
+    // }
 
-      console.log(`Making ${method} request to: ${url}`);
+    try {
+      const response = await fetch(url, {
+        method: options.method || 'GET',
+        headers: headers,
+        // Only include body if it exists
+        body: body
+      });
 
-      try {
-          const response = await this._fetchWithRetry(endpoint, fetchOptions);
-          return this.handleResponse(response);
-      } catch (error) {
-          console.error(`Network or other error fetching ${url}:`, error);
-          if (error instanceof TypeError && error.message === "Failed to fetch") {
-              throw new Error("Network error: Could not connect to the server. Please check if the backend is running.");
-          }
-          throw error;
-      }
+      // Pass the response object to handleResponse
+      return await this.handleResponse(response); // Added await here
+
+    } catch (error) {
+       // Network errors or other fetch-related issues
+      console.error(`API request failed for ${url}: ${error.message}`, error);
+       // Throw a more specific error or re-throw
+       throw new Error(`Network error or failed to fetch: ${error.message}`);
+    }
   }
 
   // Handle API response
   async handleResponse(response) {
-    console.log(`Response status: ${response.status} from ${response.url}`);
+    console.log(`API Response Status: ${response.status} for ${response.url}`);
     const contentType = response.headers.get("content-type");
 
+    // --- Error Handling ---
     if (!response.ok) {
-        let errorData;
+        let errorData = { detail: `Request failed with status ${response.status}` }; // Default error
         try {
             if (contentType && contentType.includes("application/json")) {
-                errorData = await response.json();
-                 console.error("API Error Response (JSON):", errorData);
+                const jsonError = await response.json();
+                // Use the 'detail' field if available, otherwise stringify
+                errorData.detail = jsonError.detail || JSON.stringify(jsonError);
+                console.error("API Error Response (JSON):", jsonError);
             } else {
-                 const text = await response.text();
-                 errorData = { detail: text || `Request failed with status ${response.status}` };
-                 console.error("API Error Response (Non-JSON):", text);
+                 // Attempt to read non-JSON error text
+                 const textError = await response.text();
+                 errorData.detail = textError || errorData.detail; // Use text if available
+                 console.error("API Error Response (Non-JSON):", textError);
             }
         } catch (e) {
-             errorData = { detail: `Failed to parse error response. Status: ${response.status}` };
-              console.error("Failed to parse error response:", e);
+             // Failed to parse error body, stick with status code default
+             console.error("Failed to parse error response body:", e);
         }
+
+         // Add status code to the error object/message for better context
+         const errorMessage = `Error ${response.status}: ${errorData.detail}`;
+         console.error(errorMessage); // Log the final consolidated error
 
         // Special handling for 401 Unauthorized (e.g., token expired)
         if (response.status === 401) {
-             console.warn("Received 401 Unauthorized. Clearing token and potentially redirecting.");
+             console.warn("Received 401 Unauthorized. Clearing token.");
              this.clearToken();
-             // Optional: Redirect to login page or trigger a global event
-             // window.location.href = '/'; // Or use a more sophisticated method
-             throw new Error(errorData.detail || "Authentication required or session expired.");
+             // Throw specific error for UI to potentially trigger redirect
+             throw new Error("401: Authentication required or session expired. Please log in again.");
         }
 
-        // Handle specific service unavailable errors (like from AI)
-        if (response.status === 503) {
-             console.error("Received 503 Service Unavailable.");
-             throw new Error(errorData.detail || "Service is temporarily unavailable. Please try again later.");
-        }
-
-
-        throw new Error(errorData.detail || `HTTP error ${response.status}`);
+        // Throw a generic error containing the detail message and status
+         throw new Error(errorMessage);
     }
 
-    // Handle successful responses
-    if (response.status === 204 || response.headers.get('content-length') === '0') {
-        console.log("Response has no content (204 or zero length).")
-        return null; // Or return an empty object/true based on context
+    // --- Success Handling ---
+    // Handle 204 No Content specifically
+    if (response.status === 204) {
+        console.log("Response has no content (204).")
+        return null; // Return null for successful deletion/no content responses
     }
 
+    // Check content type for JSON parsing
     if (contentType && contentType.includes("application/json")) {
-        const data = await response.json();
-        // console.log("API Success Response (JSON):", data);
-        return data;
+        try {
+             const data = await response.json();
+             // console.log("API Success Response (JSON):", data); // Optional: Log success data
+             return data;
+        } catch (e) {
+             console.error("Failed to parse successful JSON response:", e);
+             throw new Error("Failed to parse JSON response from server.");
+        }
     } else {
-        // Handle non-JSON success responses if necessary
-        const text = await response.text();
-        console.log("API Success Response (Non-JSON):", text);
-        return text;
+        // Handle successful non-JSON responses (e.g., plain text) if expected
+        try {
+             const textData = await response.text();
+             console.log("API Success Response (Non-JSON):", textData.substring(0, 100) + '...'); // Log preview
+             return textData;
+        } catch (e) {
+             console.error("Failed to read successful text response:", e);
+             throw new Error("Failed to read text response from server.");
+        }
     }
   }
 
   // --- Authentication API Calls ---
   async login(email, password) {
     console.log("Attempting login for:", email);
-    // FastAPI's OAuth2PasswordRequestForm expects x-www-form-urlencoded
-    // with 'username' and 'password' fields.
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
     return this.request(`${API_V1_PREFIX}/auth/token`, {
         method: 'POST',
-        body: { username: email, password: password }, // request() will convert this
-        isFormData: true, // Signal to use URLSearchParams
-        // skipAuth: true // Handled by checking this.token in getHeaders
+        body: formData,
+        // isFormData: true // Request function handles this type detection
     });
-    // No need to call setToken here, handleResponse doesn't automatically do it.
-    // The caller (AuthService) should call setToken with the result.
   }
 
   async register(email, password) {
@@ -164,35 +184,29 @@ class ApiService {
     return this.request(`${API_V1_PREFIX}/auth/register`, {
         method: 'POST',
         body: { email, password }, // Body is JSON
-        // skipAuth: true
     });
   }
 
   async getCurrentUser() {
     console.log("Fetching current user (/users/me)");
-    // This request requires authentication (token)
     return this.request(`${API_V1_PREFIX}/auth/users/me`, {
-         method: 'GET' // Default method is GET, explicitly stated for clarity
-         // skipAuth: false (default)
+         method: 'GET'
     });
   }
 
   // --- Journal API Calls ---
   async getJournalEntries(skip = 0, limit = 100) {
     console.log(`Fetching journal entries (skip=${skip}, limit=${limit})`);
-    // Requires auth
     return this.request(`${API_V1_PREFIX}/journal/?skip=${skip}&limit=${limit}`);
   }
 
   async getJournalEntry(id) {
     console.log("Fetching journal entry:", id);
-    // Requires auth
     return this.request(`${API_V1_PREFIX}/journal/${id}`);
   }
 
   async createJournalEntry(title, content) {
     console.log("Creating journal entry:", title);
-    // Requires auth
     return this.request(`${API_V1_PREFIX}/journal/`, {
         method: 'POST',
         body: { title, content } // JSON body
@@ -201,9 +215,6 @@ class ApiService {
 
    async updateJournalEntry(id, updateData) {
      console.log("Updating journal entry:", id);
-     // Requires auth
-     // updateData should be an object like { title: "new title", content: "new content"}
-     // Only include fields to be updated.
      return this.request(`${API_V1_PREFIX}/journal/${id}`, {
          method: 'PUT',
          body: updateData // JSON body with optional fields
@@ -212,75 +223,43 @@ class ApiService {
 
    async deleteJournalEntry(id) {
      console.log("Deleting journal entry:", id);
-     // Requires auth
      return this.request(`${API_V1_PREFIX}/journal/${id}`, {
-         method: 'DELETE'
-         // Expects 204 No Content on success
+         method: 'DELETE' // Expects 204 No Content on success
      });
    }
 
 
   async getAIConsultation(entryId) {
     console.log("Getting AI consultation for entry:", entryId);
-    // Requires auth
-    // Backend now handles context automatically for this endpoint
     return this.request(`${API_V1_PREFIX}/journal/${entryId}/consult`, {
-        method: 'POST'
-        // No request body needed for this endpoint currently
+        method: 'POST' // No request body needed
     });
   }
 
-  // --- Chat API Call ---
+  // --- Chat API Calls ---
   async sendChatMessage(message) {
-      console.log("Sending chat message:", message);
-      // Requires auth
-      return this.request(`${API_V1_PREFIX}/chat/`, {
-          method: 'POST',
-          body: { message: message } // JSON body
-      });
-      // Expects a response like { "reply": "..." }
-  }
-
-  async _fetchWithRetry(endpoint, options = {}, retryCount = 0) {
-    try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 503 && retryCount < this.maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
-          return this._fetchWithRetry(endpoint, options, retryCount + 1);
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return response;
-    } catch (error) {
-      if (retryCount < this.maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
-        return this._fetchWithRetry(endpoint, options, retryCount + 1);
-      }
-      throw error;
-    }
+    console.log("Sending chat message to API:", message.substring(0, 50) + '...');
+    // try/catch is useful here but primarily handled in request method
+    return this.request(`${API_V1_PREFIX}/chat/`, {
+        method: 'POST',
+        body: { message: message } // JSON body
+    });
+    // Errors thrown by request/handleResponse will propagate up
   }
 
   async getChatContext() {
-    try {
-      const response = await this._fetchWithRetry('/chat/context');
-      return await response.json();
-    } catch (error) {
-      console.error('Error getting chat context:', error);
-      throw error;
-    }
+    console.log("Getting chat context from API");
+    // Useful for checking if user has entries before allowing chat UI interaction
+    return this.request(`${API_V1_PREFIX}/chat/context`, {
+        method: 'GET'
+    });
+     // Expects List[JournalEntry] or 404 if no entries
   }
+
 }
 
 // Create and export a single instance of the API service
 const apiService = new ApiService();
 
 export { apiService }; // Export the instance
+// --- END OF FILE frontend/static/js/api.js ---

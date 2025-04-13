@@ -1,172 +1,286 @@
+// --- START OF FILE frontend/static/js/chat.js ---
 // Chat Interface Management
-import { apiService } from './api.js';
-import { showNotification } from './utils.js'; // Optional for general notifications
-import { marked } from 'marked';
+import { apiService } from './api.js'; // Correct import using the instance
+import { showNotification } from './utils.js';
+// Ensure Marked library is loaded (globally via script tag in HTML)
 
 class ChatService {
     constructor() {
+        console.log("Initializing ChatService...");
         this.chatContainer = document.getElementById('chat-container');
         this.messagesContainer = document.getElementById('chat-messages');
-        this.inputArea = document.getElementById('chat-input-area');
-        this.messageInput = document.getElementById('chat-input');
-        this.sendButton = document.getElementById('send-chat-btn');
-        this.loadingIndicator = document.getElementById('chat-loading');
-        this.typingIndicator = null;
-        this.debugMode = true; // Enable debug mode
+        this.inputArea = document.getElementById('chat-input-area'); // Used? Maybe just container
+        this.messageInput = document.getElementById('message-input');
+        this.sendButton = document.getElementById('send-button');
+        this.loadingIndicator = document.getElementById('loading-indicator');
+        // this.typingIndicator = null; // Keep if separate typing indicator is used
 
-        if (!this.chatContainer || !this.messagesContainer || !this.messageInput || !this.sendButton) {
-            this.debugLog("Error: Chat UI elements not found:", {
-                container: !!this.chatContainer,
-                messages: !!this.messagesContainer,
-                input: !!this.messageInput,
-                button: !!this.sendButton
-            });
-            return;
-        }
+        this.hasEntries = false; // Flag to check if user has journal entries
+        this.isProcessing = false; // Flag to prevent multiple submissions
+        this.initialCheckDone = false; // Flag to ensure initial check runs once
 
-        // Configure marked options for markdown rendering
-        marked.setOptions({
-            breaks: true,
-            gfm: true,
-            headerIds: false,
-            mangle: false
+        // Log initialization status
+        console.log("Chat elements found:", {
+            container: !!this.chatContainer,
+            messages: !!this.messagesContainer,
+            input: !!this.messageInput,
+            button: !!this.sendButton,
+            loading: !!this.loadingIndicator
         });
-    }
 
-    debugLog(...args) {
-        if (this.debugMode) {
-            console.log('[ChatDebug]', new Date().toISOString(), ...args);
-        }
-    }
-
-    init() {
-        if (!this.messageInput || !this.sendButton) {
-            this.debugLog("Error: Cannot initialize chat - missing required elements");
-            return;
+        if (!this.messagesContainer || !this.messageInput || !this.sendButton || !this.loadingIndicator) {
+            console.error("Error: Required chat UI elements not found! Chat cannot function.");
+            // Optionally display a persistent error message on the page
+            if (this.messagesContainer) {
+                 this.messagesContainer.innerHTML = '<div class="message error-message"><div class="message-content"><p>Lỗi giao diện người dùng. Không thể tải Chat.</p></div></div>';
+            }
+            return; // Stop initialization
         }
 
-        // Bind event listeners
+        // Configure marked options if not already done globally
+        if (window.marked) {
+             marked.setOptions({
+                 breaks: true, // Convert single line breaks to <br>
+                 gfm: true, // Use GitHub Flavored Markdown
+                 headerIds: false, // Don't generate header IDs
+                 mangle: false // Don't obfuscate email addresses
+             });
+             console.log("Marked library configured.");
+        } else {
+             console.warn("Marked library not found. Markdown rendering will be disabled.");
+        }
+
+
+        this.initializeEventListeners();
+        this.performInitialCheck(); // Check for entries and display welcome
+    }
+
+    initializeEventListeners() {
         this.sendButton.addEventListener('click', () => this.handleSendMessage());
+
         this.messageInput.addEventListener('keypress', (e) => {
+            // Send on Enter, unless Shift+Enter is pressed
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+                e.preventDefault(); // Prevent new line in textarea
                 this.handleSendMessage();
             }
         });
 
-        this.messageInput.addEventListener('input', () => this.autoResizeInput());
-        
-        this.autoResizeInput();
-        this.scrollToBottom();
-        this.debugLog("Chat service initialized successfully");
+        // Auto-resize textarea (optional but nice)
+        this.messageInput.addEventListener('input', () => {
+            this.messageInput.style.height = 'auto'; // Reset height
+            this.messageInput.style.height = `${this.messageInput.scrollHeight}px`; // Set to scroll height
+        });
     }
 
-    autoResizeInput() {
-        if (!this.messageInput) return;
-        this.messageInput.style.height = 'auto';
-        this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 150) + 'px';
-    }
+    async performInitialCheck() {
+         if (this.initialCheckDone) return;
+         this.initialCheckDone = true;
+         this.setLoadingState(true, true); // Show loading initially
 
-    scrollToBottom() {
-        if (this.messagesContainer) {
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        try {
+             // Use the /context endpoint to check for entries
+            const entries = await apiService.getChatContext(); // Assuming this returns entries or throws 404
+            this.hasEntries = entries && entries.length > 0;
+            console.log("Initial entry check successful. Has entries:", this.hasEntries);
+            this.displayWelcomeMessage();
+        } catch (error) {
+            console.error('Error checking for entries:', error);
+            this.hasEntries = false; // Assume no entries on error
+            if (error.message && error.message.includes("No journal entries found")) {
+                 console.log("No entries found via context endpoint.");
+                 this.displayWelcomeMessage(); // Display specific welcome message
+            } else if (error.message && error.message.includes("401")) {
+                // This should ideally be caught by ApiService redirecting, but handle defensively
+                this.displayErrorMessage("Bạn cần đăng nhập để sử dụng tính năng Chat.");
+                this.messageInput.disabled = true;
+                this.sendButton.disabled = true;
+            }
+             else {
+                // Generic error during initial check
+                this.displayErrorMessage("Không thể kiểm tra trạng thái nhật ký. Vui lòng thử lại.");
+                 this.messageInput.disabled = true;
+                 this.sendButton.disabled = true;
+            }
+        } finally {
+             this.setLoadingState(false, true); // Hide initial loading
         }
+    }
+
+    displayWelcomeMessage() {
+        let welcomeText;
+        if (this.hasEntries) {
+            welcomeText = "Chào bạn! Tôi đã đọc qua các bài viết nhật ký gần đây của bạn. Bạn muốn trò chuyện về điều gì hôm nay?";
+        } else {
+            welcomeText = "Chào bạn! Dường như bạn chưa có bài viết nhật ký nào gần đây. Hãy viết ít nhất một bài để chúng ta có thể bắt đầu trò chuyện nhé.";
+             // Disable input if no entries
+             this.messageInput.disabled = true;
+             this.sendButton.disabled = true;
+             this.messageInput.placeholder = "Vui lòng tạo bài viết nhật ký trước...";
+        }
+
+        this.displayMessage({
+            role: 'ai', // Display as AI message
+            content: welcomeText
+        });
     }
 
     async handleSendMessage() {
-        if (!this.messageInput) return;
-        
-        const messageText = this.messageInput.value.trim();
-        if (!messageText) return;
+        const userMessage = this.messageInput.value.trim();
 
-        this.debugLog("=== New Chat Message ===");
-        this.debugLog("User Message:", messageText);
-        console.log("\n=== CHAT DEBUG ===");
-        console.log("User:", messageText);
+        if (!userMessage || this.isProcessing) {
+            return; // Ignore empty messages or if already processing
+        }
 
-        this.setLoading(true);
-        this.displayMessage(messageText, 'user');
+        if (!this.hasEntries) {
+            showNotification("Vui lòng tạo ít nhất một bài viết nhật ký trước khi bắt đầu chat.", true);
+            return;
+        }
+
+        this.isProcessing = true;
+        this.setLoadingState(true); // Show typing indicator, disable button
+
+        // Display user message immediately
+        this.displayMessage({
+            role: 'user',
+            content: userMessage
+        });
+
+        // Clear input and reset height
         this.messageInput.value = '';
-        this.autoResizeInput();
-        this.scrollToBottom();
+        this.messageInput.style.height = 'auto';
+        this.messageInput.focus(); // Keep focus on input
 
         try {
-            this.debugLog("Sending request to API...");
-            const response = await apiService.sendChatMessage(messageText);
-            this.debugLog("Received API response:", response);
-            console.log("AI:", response.reply);
-            console.log("================\n");
+            const response = await apiService.sendChatMessage(userMessage);
 
-            if (response && response.reply) {
-                this.displayMessage(response.reply, 'ai');
-                this.scrollToBottom();
+            if (response && typeof response.reply === 'string') {
+                this.displayMessage({
+                    role: 'ai',
+                    content: response.reply
+                });
             } else {
-                throw new Error("Không nhận được phản hồi từ AI.");
+                 console.error('Invalid response format from server:', response);
+                throw new Error('Phản hồi không hợp lệ từ máy chủ.');
             }
         } catch (error) {
-            this.debugLog("Error in chat:", error);
-            console.error("Chat error:", error);
-            
-            let errorMessage = "Lỗi khi gửi tin nhắn: ";
-            if (error.message.includes("No journal entries found")) {
-                errorMessage += "Không tìm thấy bài viết nào để làm ngữ cảnh. Vui lòng tạo ít nhất một bài viết trước khi chat.";
-            } else if (error.message.includes("AI service")) {
-                errorMessage += "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.";
-            } else {
-                errorMessage += error.message;
-            }
-            
-            this.displayMessage(errorMessage, 'error');
-            showNotification(errorMessage, true);
-            console.log("Error:", errorMessage);
-            console.log("================\n");
+            console.error('Chat send/receive error:', error);
+            let errorMessage = 'Đã xảy ra lỗi khi xử lý tin nhắn của bạn.';
+
+            // Check for specific error messages passed from ApiService/Backend
+             if (error.message) {
+                 if (error.message.includes("Please write at least one journal entry")) {
+                    errorMessage = error.message;
+                    this.hasEntries = false; // Update state
+                     this.messageInput.disabled = true;
+                     this.sendButton.disabled = true;
+                } else if (error.message.includes("AI service error:") || error.message.includes("AI Error:")) {
+                     errorMessage = error.message; // Display specific AI error
+                 } else if (error.message.includes("401") || error.message.includes("Authentication required")) {
+                     errorMessage = "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.";
+                     // Optionally trigger redirect via auth service
+                 } else if (error.message.includes("503") || error.message.includes("AI service unavailable") || error.message.includes("AI service failed to respond")) {
+                      errorMessage = "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.";
+                 } else if (error.message.includes("safety settings")) {
+                      errorMessage = "Nội dung bị chặn bởi cài đặt an toàn.";
+                 }
+             }
+            this.displayErrorMessage(errorMessage);
         } finally {
-            this.setLoading(false);
-            this.messageInput.focus();
+            this.isProcessing = false;
+            this.setLoadingState(false); // Hide indicator, enable button
         }
     }
 
-    setLoading(isLoading) {
-        if (this.messageInput) this.messageInput.disabled = isLoading;
-        if (this.sendButton) this.sendButton.disabled = isLoading;
-        if (this.loadingIndicator) {
-            this.loadingIndicator.classList.toggle('hidden', !isLoading);
+    displayMessage(messageData) { // messageData = { role: 'user'/'ai', content: '...' }
+        const messageDiv = document.createElement('div');
+        // Use role to determine class
+        messageDiv.className = `message ${messageData.role}-message`;
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+
+        try {
+            // Use marked to render AI messages, treat user messages as plain text
+            if (messageData.role === 'ai' && window.marked) {
+                contentDiv.innerHTML = marked.parse(messageData.content);
+            } else {
+                 // For user messages or if marked fails, use textContent for safety
+                 const p = document.createElement('p');
+                 p.textContent = messageData.content;
+                 contentDiv.appendChild(p);
+                 // contentDiv.textContent = messageData.content; // Simpler, but doesn't create <p>
+            }
+        } catch (error) {
+            console.error('Error parsing markdown:', error);
+             // Fallback to plain text on error
+            const p = document.createElement('p');
+            p.textContent = messageData.content;
+            contentDiv.appendChild(p);
+            // contentDiv.textContent = messageData.content;
         }
-        if (this.inputArea) {
-            this.inputArea.style.opacity = isLoading ? 0.7 : 1;
-        }
-        this.debugLog("Loading state:", isLoading);
-    }
 
-    displayMessage(text, type = 'ai') {
-        if (!this.messagesContainer) return;
-
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', type);
-
-        if (type === 'ai') {
-            messageElement.innerHTML = marked.parse(text);
-        } else {
-            messageElement.textContent = text;
-        }
-
-        this.messagesContainer.appendChild(messageElement);
+        messageDiv.appendChild(contentDiv);
+        this.messagesContainer.appendChild(messageDiv);
         this.scrollToBottom();
-        this.debugLog(`Displayed ${type} message:`, text);
-        return messageElement;
     }
 
-    showTypingIndicator() {
-        if (this.typingIndicator) return; // Already showing
-        this.typingIndicator = this.displayMessage('AI is typing...', 'typing');
+    displayErrorMessage(messageText) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'message error-message'; // Specific class for errors
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.innerHTML = `<p><i class="fas fa-exclamation-triangle"></i> ${messageText}</p>`; // Add icon
+
+        errorDiv.appendChild(contentDiv);
+        this.messagesContainer.appendChild(errorDiv);
+        this.scrollToBottom();
     }
 
-    removeTypingIndicator() {
-        if (this.typingIndicator) {
-            this.typingIndicator.remove();
-            this.typingIndicator = null;
-        }
+    setLoadingState(isLoading, isInitial = false) {
+         if (isInitial) {
+             // Handle initial page loading state differently if needed
+              // e.g., show a full page spinner instead of typing indicator
+              // For now, we use the same indicator but maybe hide input
+              if (isLoading) {
+                   this.messageInput.disabled = true;
+                   this.sendButton.disabled = true;
+                   // Maybe show a different loading message initially
+                   // this.loadingIndicator.innerHTML = "<p>Đang khởi tạo chat...</p>";
+                   this.loadingIndicator.style.display = 'flex'; // Use flex if styled that way
+              } else {
+                   // Enable input only if user has entries
+                   this.messageInput.disabled = !this.hasEntries;
+                   this.sendButton.disabled = !this.hasEntries;
+                   this.loadingIndicator.style.display = 'none';
+              }
+
+         } else {
+             // Handle loading state during message exchange
+             if (isLoading) {
+                 this.sendButton.disabled = true;
+                 this.messageInput.disabled = true; // Disable input while AI replies
+                 this.loadingIndicator.style.display = 'flex'; // Show typing indicator
+             } else {
+                 this.sendButton.disabled = false;
+                 this.messageInput.disabled = false; // Re-enable input
+                 this.loadingIndicator.style.display = 'none'; // Hide indicator
+                 this.messageInput.focus(); // Refocus input after reply
+             }
+         }
+
+    }
+
+    scrollToBottom() {
+        // Use smooth scroll for better UX
+        this.messagesContainer.scrollTo({
+            top: this.messagesContainer.scrollHeight,
+            behavior: 'smooth'
+        });
     }
 }
 
+// Export the class (though it's instantiated in chat.html's script tag)
 export { ChatService };
+// --- END OF FILE frontend/static/js/chat.js ---
