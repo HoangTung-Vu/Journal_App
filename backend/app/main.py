@@ -60,6 +60,14 @@ async def serve_index():
     if index_path.is_file(): return FileResponse(index_path, media_type='text/html')
     else: raise HTTPException(status_code=404, detail="index.html not found")
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    favicon_path = frontend_dir / "static/img/favicon.ico"
+    if favicon_path.is_file():
+        return FileResponse(favicon_path, media_type='image/x-icon')
+    else:
+        raise HTTPException(status_code=404, detail="favicon.ico not found")
+
 @app.get("/journal.html", include_in_schema=False)
 async def serve_journal_page():
     journal_path = frontend_dir / "journal.html"

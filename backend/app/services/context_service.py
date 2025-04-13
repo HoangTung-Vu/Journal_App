@@ -49,12 +49,16 @@ class ContextService:
     def _get_consultation_context(self, user_id: int, target_entry_id: int) -> List[models.JournalEntry]:
         """Fetches the 5 journal entries immediately before the target entry for AI consultation."""
         try:
-            return crud.get_recent_entries_before(
+            entries = crud.get_recent_entries_before(
                 db=self.db,
                 user_id=user_id,
                 target_entry_id=target_entry_id,
                 limit=self.context_limit
             )
+            if not entries:
+                logger.warning(f"No entries found before target entry {target_entry_id} for user {user_id}")
+                return []
+            return entries
         except Exception as e:
             logger.error(f"Error fetching consultation context for user {user_id}: {str(e)}", exc_info=True)
             return []
@@ -63,7 +67,7 @@ class ContextService:
         """
         Resets the user's chat service and initializes a new session with the latest context.
         Called when the user enters the chat page (via /context endpoint).
-        Returns the context entries used or raises ValueError if none are found.
+        Returns the context entries used or empty list if no entries found.
         """
         logger.info(f"Preparing NEW chat session for user {user_id}.")
 
@@ -73,9 +77,6 @@ class ContextService:
 
             # 2. Fetch latest context
             context_entries = self._get_context_entries(user_id)
-            if not context_entries:
-                logger.warning(f"No journal entries found for user {user_id}. Cannot prepare chat session.")
-                raise ValueError("No journal entries found. Please write an entry to start chatting.")
 
             # 3. Get a fresh ChatService instance
             chat_service = self._get_chat_service(user_id)
@@ -115,18 +116,12 @@ class ContextService:
             try:
                 # Attempt to initialize here (less ideal as it might use slightly stale context if called directly)
                 context_entries = self._get_context_entries(user_id)
-                if not context_entries:
-                    raise ValueError("Please write at least one journal entry to start chatting.")
                 await chat_service.start_chat(context_entries)
                 logger.info(f"Fallback chat session initialization successful for user {user_id}.")
             except (ValueError, AIConfigError, AIResponseError) as e:
                 logger.error(f"Fallback chat initialization FAILED for user {user_id}: {e}")
                 self._reset_chat_service(user_id) # Clean up failed instance
-                # Raise an error that the router can handle (e.g., 400 or 503)
-                if "journal entry" in str(e):
-                    raise ValueError(str(e)) # Let router return 400
-                else:
-                    raise AIResponseError(f"Failed to initialize chat during fallback: {e}") # Let router return 503
+                raise AIResponseError(f"Failed to initialize chat during fallback: {e}") # Let router return 503
 
         # --- Send Message to Initialized Session ---
         try:

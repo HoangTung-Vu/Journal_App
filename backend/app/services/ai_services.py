@@ -56,10 +56,14 @@ class AIService:
             logger.error(f"Failed to initialize AI service: {str(e)}", exc_info=True)
             raise AIConfigError(f"Failed to initialize AI service: {str(e)}")
 
-    def format_entries_for_context(self, entries: List[models.JournalEntry]) -> str:
-        """Format journal entries into a string for AI context"""
+    def format_entries_for_context(self, entries: List[models.JournalEntry]) -> tuple[str, bool]:
+        """
+        Format journal entries into a string for AI context.
+        Returns:
+            tuple[str, bool]: (context_string, has_entries)
+        """
         if not entries:
-            return "No recent journal entries available for context."
+            return "...", False
 
         context_str = "Recent Journal Entries Context:\n"
         context_str += "=============================\n"
@@ -67,13 +71,13 @@ class AIService:
 
         for entry in sorted_entries:
             entry_date = entry.created_at.strftime('%Y-%m-%d %H:%M')
-            context_str += f"\n--- Entry from {entry_date} (ID: {entry.id}) ---\n" # Added ID for clarity
+            context_str += f"\n--- Entry from {entry_date} (ID: {entry.id}) ---\n"
             context_str += f"Title: {entry.title}\n"
             content_preview = (entry.content[:500] + '...') if len(entry.content) > 500 else entry.content
             context_str += f"Content:\n{content_preview}\n"
             context_str += "-----------------------------\n"
 
-        return context_str
+        return context_str, True
 
     # --- generate_ai_response for single analysis (Unchanged) ---
     async def generate_ai_response(
@@ -91,8 +95,7 @@ class AIService:
                 f"Generating single AI analysis response for content length: {len(main_content)}, "
                 f"with {len(context_entries)} context entries"
             )
-            context_str = self.format_entries_for_context(context_entries)
-
+            context_str, has_entries = self.format_entries_for_context(context_entries)
             full_prompt = f"""{context_str}
 =============================
 
@@ -167,7 +170,13 @@ Luôn giữ thái độ tích cực và hỗ trợ."""
 
     def _format_history_for_api(self, entries: List[models.JournalEntry]) -> List[ContentDict]:
         """Formats entries and initial prompt into the history structure for genai.ChatSession."""
-        context_str = self.ai_service.format_entries_for_context(entries)
+        context_str, has_entries = self.ai_service.format_entries_for_context(entries)
+        # Print context to terminal
+        print("\n=== Chat Context ===")
+        print(context_str)
+        print(has_entries)
+        print("===================\n")
+
         # Combine system instruction and context into the first user message for simplicity
         initial_user_message = f"""{self.system_instruction}
 
@@ -179,10 +188,14 @@ Luôn giữ thái độ tích cực và hỗ trợ."""
 Bây giờ, hãy bắt đầu trò chuyện. Tôi sẽ là người bắt đầu."""
 
         # Initial history for the ChatSession object
+        if has_entries == False:
+            initial_ai_response = "Chào bạn! Tôi thấy bạn chưa có bài viết nhật ký nào. Bạn có thể chia sẻ với tôi về những suy nghĩ và cảm xúc hiện tại của mình, hoặc tạo một bài viết nhật ký mới để chúng ta có thể trò chuyện sâu hơn về nó."
+        else:
+            initial_ai_response = "Chào bạn, tôi đã đọc qua ngữ cảnh bạn cung cấp từ nhật ký. Tôi rất sẵn lòng lắng nghe và trò chuyện về bất cứ điều gì bạn đang suy nghĩ hoặc cảm thấy. Bạn muốn bắt đầu như thế nào?"
+
         history: List[ContentDict] = [
             {'role': 'user', 'parts': [PartDict(text=initial_user_message)]},
-            # The model's first reply sets the tone
-            {'role': 'model', 'parts': [PartDict(text="Chào bạn, tôi đã đọc qua ngữ cảnh bạn cung cấp từ nhật ký. Tôi rất sẵn lòng lắng nghe và trò chuyện về bất cứ điều gì bạn đang suy nghĩ hoặc cảm thấy. Bạn muốn bắt đầu như thế nào?")]}
+            {'role': 'model', 'parts': [PartDict(text=initial_ai_response)]}
         ]
         return history
 
@@ -191,11 +204,6 @@ Bây giờ, hãy bắt đầu trò chuyện. Tôi sẽ là người bắt đầu
         if self.is_initialized:
             logger.warning("ChatService.start_chat called but already initialized.")
             return
-
-        if not context_entries:
-             logger.error("Attempted to start chat with no context entries.")
-             # This should ideally be caught before calling start_chat
-             raise ValueError("Cannot start chat without context entries.")
 
         logger.info(f"Initializing ChatService session with {len(context_entries)} context entries.")
         try:
