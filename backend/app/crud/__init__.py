@@ -5,9 +5,12 @@ from .crud import (
     create_user,
     get_journal,
     get_journals,
+    get_journals_before,
+    get_journals_after,
     create_journal,
     update_journal,
-    delete_journal
+    delete_journal,
+    get_recent_entries_before
 )
 
 __all__ = [
@@ -16,7 +19,10 @@ __all__ = [
     "create_user",
     "get_journal",
     "get_journals",
+    "get_journals_before",
+    "get_journals_after",
     "create_journal",
     "update_journal",
-    "delete_journal"
+    "delete_journal",
+    "get_recent_entries_before"
 ]

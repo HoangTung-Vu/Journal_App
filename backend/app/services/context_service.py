@@ -16,7 +16,7 @@ class ContextService:
         # Store chat services per user ID. Class variable for simplicity (consider better state management in production).
         if not hasattr(ContextService, '_chat_services'):
             ContextService._chat_services: Dict[int, ChatService] = {}
-        self.context_limit = 5
+        self.context_limit = 10
 
     def _get_chat_service(self, user_id: int) -> ChatService:
         """Get or create a chat service instance for a user. Does NOT initialize the session."""
@@ -34,20 +34,29 @@ class ContextService:
             del ContextService._chat_services[user_id]
 
     def _get_context_entries(self, user_id: int, exclude_id: Optional[int] = None) -> List[models.JournalEntry]:
-        """Fetches the most recent journal entries for context."""
+        """Fetches the 5 most recent journal entries for chat context."""
         try:
-            entries = crud.get_journals(
+            return crud.get_journals(
                 db=self.db,
                 user_id=user_id,
                 skip=0,
                 limit=self.context_limit
             )
-            if exclude_id:
-                entries = [e for e in entries if e.id != exclude_id]
-            # logger.debug(f"Fetched {len(entries)} context entries for user {user_id}.")
-            return entries
         except Exception as e:
             logger.error(f"Error fetching context entries for user {user_id}: {str(e)}", exc_info=True)
+            return []
+
+    def _get_consultation_context(self, user_id: int, target_entry_id: int) -> List[models.JournalEntry]:
+        """Fetches the 5 journal entries immediately before the target entry for AI consultation."""
+        try:
+            return crud.get_recent_entries_before(
+                db=self.db,
+                user_id=user_id,
+                target_entry_id=target_entry_id,
+                limit=self.context_limit
+            )
+        except Exception as e:
+            logger.error(f"Error fetching consultation context for user {user_id}: {str(e)}", exc_info=True)
             return []
 
     async def prepare_new_chat_session(self, user_id: int) -> List[models.JournalEntry]:
@@ -137,7 +146,7 @@ class ContextService:
 
     async def get_ai_consultation(self, entry_id: int, user_id: int) -> str:
         """
-        Get AI consultation for a specific journal entry (Existing Functionality - unchanged).
+        Get AI consultation for a specific journal entry.
         Uses the separate `generate_ai_response` function, not the user's chat session.
         """
         logger.debug(f"Starting single AI consultation for entry {entry_id}, user {user_id}")
@@ -146,7 +155,8 @@ class ContextService:
             if not target_entry:
                 raise ValueError("Journal entry not found or does not belong to user.")
 
-            context_entries = self._get_context_entries(user_id, exclude_id=entry_id)
+            # Get the 5 entries before the target entry
+            context_entries = self._get_consultation_context(user_id, entry_id)
 
             # Use the global 'generate_ai_response' for single analysis
             response = await generate_ai_response(

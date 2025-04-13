@@ -1,6 +1,7 @@
 # --- START OF FILE backend/app/crud/crud.py ---
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 
 # Use relative imports
 from ..db import models
@@ -70,4 +71,30 @@ def delete_journal(db: Session, journal_id: int, user_id: int) -> Optional[model
         db.delete(db_journal)
         db.commit()
     return db_journal # Trả về object đã xóa (hoặc None nếu không tìm thấy)
+
+def get_recent_entries_before(db: Session, user_id: int, target_entry_id: int, limit: int = 5) -> List[models.JournalEntry]:
+    """
+    Lấy n entries gần nhất trước một entry cụ thể.
+    Args:
+        db: Database session
+        user_id: ID của user
+        target_entry_id: ID của entry target
+        limit: Số lượng entries cần lấy
+    Returns:
+        Danh sách các entries được sắp xếp theo thời gian giảm dần
+    """
+    # Lấy target entry để có timestamp
+    target_entry = get_journal(db, target_entry_id, user_id)
+    if not target_entry:
+        return []
+
+    # Lấy các entries trước target entry
+    return db.query(models.JournalEntry)\
+             .filter(
+                 models.JournalEntry.owner_id == user_id,
+                 models.JournalEntry.created_at < target_entry.created_at
+             )\
+             .order_by(models.JournalEntry.created_at.desc())\
+             .limit(limit)\
+             .all()
 # --- END OF FILE backend/app/crud/crud.py ---
