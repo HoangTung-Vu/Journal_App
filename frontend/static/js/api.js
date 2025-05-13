@@ -1,7 +1,7 @@
-// --- START OF FILE frontend/static/js/api.js ---
 // API service for making requests to the backend
 
-const API_BASE_URL = "http://127.0.0.1:8000"; // Ensure no trailing slash initially
+// Use relative URL so it works both in development and production with Docker
+const API_BASE_URL = ""; // Empty means use current host
 const API_V1_PREFIX = "/api/v1";
 
 class ApiService {
@@ -262,4 +262,3 @@ class ApiService {
 const apiService = new ApiService();
 
 export { apiService }; // Export the instance
-// --- END OF FILE frontend/static/js/api.js ---

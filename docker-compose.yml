@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: journal_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hoangtung}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-14092004tung}
+      POSTGRES_DB: ${POSTGRES_DB:-journal_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - journal_network
+
+  backend:
+    build: ./backend
+    container_name: journal_backend
+    depends_on:
+      - postgres
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://hoangtung:14092004tung@postgres:5432/journal_db
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - journal_network
+
+  frontend:
+    build: ./frontend
+    container_name: journal_frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: unless-stopped
+    networks:
+      - journal_network
+
+networks:
+  journal_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
