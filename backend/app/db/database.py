@@ -1,4 +1,3 @@
-# --- START OF FILE backend/app/db/database.py ---
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +7,9 @@ import os
 from ..core.config import settings
 
 SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+
+# Add explicit debug print to see what URL is being used
+print(f"DEBUG: Attempting to connect with DATABASE_URL: {SQLALCHEMY_DATABASE_URL}")
 
 # Check if DATABASE_URL is set
 if not SQLALCHEMY_DATABASE_URL:
@@ -71,4 +73,3 @@ def init_db():
         print("Or set SKIP_DB_INIT=true in your environment variables if tables already exist.")
         # Consider whether to raise the error or just log it
         # raise # Uncomment if startup should fail on DB error
-# --- END OF FILE backend/app/db/database.py ---
